@@ -6,6 +6,7 @@ use crate::app::App;
 pub mod app;
 pub mod cmdbuf;
 pub mod event;
+pub mod movement;
 pub mod ui;
 
 /// Simple program to greet a person

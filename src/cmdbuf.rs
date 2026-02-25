@@ -7,6 +7,9 @@ impl CmdBuf {
     pub fn new() -> Self {
         Self { buf: Vec::new() }
     }
+    pub fn push(&mut self, c: char) {
+        self.buf.push(c);
+    }
 
     pub fn count(&mut self) -> usize {
         if self.buf.len() == 0 {

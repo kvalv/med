@@ -1,8 +1,9 @@
 use std::path::Path;
 
 use crate::{
-    cmdbuf::{self, CmdBuf},
+    cmdbuf::{self},
     event::{AppEvent, Event, EventHandler},
+    movement::next_word,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::DefaultTerminal;
@@ -25,7 +26,7 @@ pub enum Mode {
 #[derive(Debug)]
 pub struct App {
     // Location of the cursor
-    pub buf: String,
+    pub buf: Vec<String>,
 
     pub cmdbuf: cmdbuf::CmdBuf,
 
@@ -45,7 +46,11 @@ impl App {
     /// Constructs a new instance of [`App`].
     pub fn new(path: &Path) -> Self {
         Self {
-            buf: std::fs::read_to_string(path.to_str().unwrap()).expect("failed to read"),
+            buf: std::fs::read_to_string(path.to_str().unwrap())
+                .unwrap()
+                .lines()
+                .map(|str| str.to_string())
+                .collect(),
             mode: Mode::default(),
             cursor: Cursor { col: 0, row: 0 },
             cmdbuf: cmdbuf::CmdBuf::new(),
@@ -91,30 +96,23 @@ impl App {
                         self.mode = mode;
                     }
                     Write(c) => {
-                        self.buf = self
-                            .buf
-                            .lines()
-                            .enumerate()
-                            .map(|(i, line)| {
-                                if self.cursor.row == i {
-                                    let mut tmp = line.to_string();
-                                    tmp.insert(self.cursor.col, c);
-                                    tmp
-                                } else {
-                                    line.to_string()
-                                }
-                            })
-                            .collect::<Vec<String>>()
-                            .join("\n");
+                        if let Some(line) = self.buf.get_mut(self.cursor.row) {
+                            line.insert(self.cursor.col, c);
+                        }
                         self.cursor.col += 1;
                     }
                     AdvanceWord => {
                         let count = self.cmdbuf.count();
-                        if count > 0 {
+                        if count > 1 {
                             todo!("Advance by n words {count}");
                         }
-                    }
-                    _ => todo!(),
+                        let j = next_word(&self.buf[self.cursor.row], self.cursor.col, count);
+                        if let Some(j) = j {
+                            self.cursor.col = j;
+                        } else {
+                            self.cursor.col = self.buf[self.cursor.row].len();
+                        }
+                    } // _ => todo!(),
                 },
             }
         }

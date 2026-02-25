@@ -25,7 +25,7 @@ impl Widget for &App {
         let text = self.buf.clone();
 
         let v: Vec<_> = text
-            .lines()
+            .iter()
             .enumerate()
             .map(|(i, line)| {
                 if self.cursor.row == i {
@@ -33,19 +33,19 @@ impl Widget for &App {
                     // let mut spans: Vec<Span> ;
                     let mut spans = vec![];
                     let lhs: String = line.chars().take(self.cursor.col).collect();
-                    if lhs.len() > 0 {
+                    if !lhs.is_empty() {
                         spans.push(Span::from(lhs));
                     }
                     if let Some(c) = line.chars().nth(self.cursor.col) {
                         spans.push(Span::from(String::from(c)).bg(Color::Red))
                     }
                     let rhs: String = line.chars().skip(self.cursor.col + 1).collect();
-                    if rhs.len() > 0 {
+                    if !rhs.is_empty() {
                         spans.push(Span::from(rhs));
                     }
                     Line::from(spans)
                 } else {
-                    Line::from(line).fg(Color::Blue)
+                    Line::from(line.clone()).fg(Color::Blue)
                 }
             })
             .collect();
