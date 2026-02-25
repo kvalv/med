@@ -21,11 +21,21 @@ pub enum Mode {
     Insert,
     Command,
 }
+impl std::fmt::Display for Mode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Mode::Normal => write!(f, "NORMAL"),
+            Mode::Insert => write!(f, "INSERT"),
+            Mode::Command => write!(f, "COMMAND"),
+        }
+    }
+}
 
 /// Application.
 #[derive(Debug)]
 pub struct App {
     // Location of the cursor
+    pub filename: String,
     pub buf: Vec<String>,
 
     pub cmdbuf: cmdbuf::CmdBuf,
@@ -46,6 +56,7 @@ impl App {
     /// Constructs a new instance of [`App`].
     pub fn new(path: &Path) -> Self {
         Self {
+            filename: path.to_str().unwrap().to_string(),
             buf: std::fs::read_to_string(path.to_str().unwrap())
                 .unwrap()
                 .lines()
@@ -113,6 +124,9 @@ impl App {
                             self.cursor.col = self.buf[self.cursor.row].len();
                         }
                     } // _ => todo!(),
+                    BufWrite => {
+                        std::fs::write(&self.filename, self.buf.join("\n"))?;
+                    }
                 },
             }
         }
@@ -140,6 +154,9 @@ impl App {
             Mode::Normal => {
                 match key_event.code {
                     KeyCode::Char('i') => self.events.send(AppEvent::ModeChange(Mode::Insert)),
+                    KeyCode::Char(':' | ';') => {
+                        self.events.send(AppEvent::ModeChange(Mode::Command))
+                    }
                     KeyCode::Char('q') => self.events.send(AppEvent::Quit),
                     KeyCode::Char('j') => self.events.send(AppEvent::CursorMove(1, 0)),
                     KeyCode::Char('k') => self.events.send(AppEvent::CursorMove(-1, 0)),
@@ -157,9 +174,23 @@ impl App {
                 }
                 // } else if self.mode == Mode::Insert {
             }
-            _ => {
-                todo!();
-            }
+            _ => match key_event.code {
+                KeyCode::Enter => {
+                    match self.cmdbuf.drain().collect::<String>().as_str() {
+                        "w" => self.events.send(AppEvent::BufWrite),
+                        w => todo!("implement cmd for {w}"),
+                    }
+                    // todo!("Handle enter key in command mode");
+                }
+                KeyCode::Esc => {
+                    self.cmdbuf = cmdbuf::CmdBuf::new();
+                    self.events.send(AppEvent::ModeChange(Mode::Normal));
+                }
+                KeyCode::Char(c) => {
+                    self.cmdbuf.push(c);
+                }
+                _ => todo!("Handle other keys in command mode"),
+            },
         }
 
         Ok(())

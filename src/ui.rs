@@ -1,12 +1,12 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Rect},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::{Color, Stylize},
     text::{Line, Span},
-    widgets::{Block, BorderType, Paragraph, Widget},
+    widgets::{Block, BorderType, Borders, Paragraph, Widget},
 };
 
-use crate::app::App;
+use crate::app::{App, Mode};
 
 impl Widget for &App {
     /// Renders the user interface widgets.
@@ -17,7 +17,8 @@ impl Widget for &App {
     // - https://github.com/ratatui/ratatui/tree/master/examples
     fn render(self, area: Rect, buf: &mut Buffer) {
         let block = Block::bordered()
-            .title("event-driven-async")
+            // .title("event-driven-async")
+            .borders(Borders::TOP | Borders::BOTTOM)
             .title_alignment(Alignment::Center)
             .border_type(BorderType::Rounded);
 
@@ -55,6 +56,33 @@ impl Widget for &App {
             .fg(Color::White)
             .bg(Color::Black);
 
-        paragraph.render(area, buf);
+        let vertical = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Min(0),
+            Constraint::Length(1),
+        ]);
+        let [header_area, inner_area, footer_area] = vertical.areas(area);
+
+        // Title
+        Line::from(self.filename.clone())
+            .bold()
+            .render(header_area, buf);
+
+        // Content
+        paragraph.render(inner_area, buf);
+
+        // Command palette
+        // format!("{}", &self.mode).italic().render(footer_area, buf);
+        render_cmd(self).italic().render(footer_area, buf);
+    }
+}
+
+fn render_cmd(app: &App) -> Line {
+    match app.mode {
+        Mode::Command => Line::from(vec![
+            format!(":{}", app.cmdbuf.to_string()).into(),
+            Span::from(" ").bg(Color::White),
+        ]),
+        _ => format!("{}", app.mode).into(),
     }
 }

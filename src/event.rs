@@ -40,6 +40,7 @@ pub enum AppEvent {
     CursorMove(i32, i32),
     AdvanceWord,
     Write(char), // Writes a character to the current cursor position.
+    BufWrite,
 }
 
 /// Terminal event handler.
