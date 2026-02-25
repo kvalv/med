@@ -1,0 +1,3 @@
+- [ ] open file
+- [ ] insert some characters
+- [ ] save file
