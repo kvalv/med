@@ -75,6 +75,9 @@ impl App {
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
         use AppEvent::*;
 
+        let row = self.cursor.row;
+        let col = self.cursor.col;
+
         while self.running {
             terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
             match self.events.next().await? {
@@ -113,6 +116,7 @@ impl App {
                         self.cursor.col += 1;
                     }
                     AdvanceWord => {
+                        panic!("No more");
                         let count = self.cmdbuf.count();
                         if count > 1 {
                             todo!("Advance by n words {count}");
@@ -124,6 +128,21 @@ impl App {
                             self.cursor.col = self.buf[self.cursor.row].len();
                         }
                     } // _ => todo!(),
+                    Movement => {
+                        let verb = self
+                            .cmdbuf
+                            .pop()
+                            .expect("movement command should have a verb");
+                        let count = self.cmdbuf.pop_count().unwrap_or(1);
+                        match verb {
+                            'w' => {
+                                self.cursor.col =
+                                    next_word(&self.buf[self.cursor.row], self.cursor.col, count)
+                                        .unwrap_or_else(|| self.buf[self.cursor.row].len());
+                            }
+                            _ => {}
+                        }
+                    }
                     BufWrite => {
                         std::fs::write(&self.filename, self.buf.join("\n"))?;
                     }
@@ -163,7 +182,11 @@ impl App {
                     KeyCode::Char('h') => self.events.send(AppEvent::CursorMove(0, -1)),
                     KeyCode::Char('l') => self.events.send(AppEvent::CursorMove(0, 1)),
                     KeyCode::Char('0') => self.events.send(AppEvent::CursorMove(0, -9999)),
-                    KeyCode::Char('w') => self.events.send(AppEvent::AdvanceWord),
+                    // KeyCode::Char('w') => self.events.send(AppEvent::AdvanceWord),
+                    KeyCode::Char(c @ ('w' | 'b')) => {
+                        self.cmdbuf.push(c);
+                        self.events.send(AppEvent::Movement);
+                    }
 
                     // TODO: w, ...
                     KeyCode::Char(c) if c.is_ascii_digit() => {

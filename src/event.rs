@@ -37,6 +37,7 @@ pub enum AppEvent {
     Quit,
     ModeChange(Mode),
 
+    Movement, // hjkl, w, b, ...
     CursorMove(i32, i32),
     AdvanceWord,
     Write(char), // Writes a character to the current cursor position.

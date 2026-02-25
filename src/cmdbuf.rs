@@ -19,6 +19,25 @@ impl CmdBuf {
     pub fn drain(&mut self) -> std::vec::Drain<'_, char> {
         self.buf.drain(..)
     }
+    pub fn last(&self) -> Option<char> {
+        self.buf.last().cloned()
+    }
+    pub fn pop(&mut self) -> Option<char> {
+        self.buf.pop()
+    }
+    // pops from the cmdbuf a count
+    pub fn pop_count(&mut self) -> Option<usize> {
+        self.buf
+            .iter()
+            .rev()
+            .take_while(|c| c.is_digit(10))
+            .collect::<String>()
+            .parse::<usize>()
+            .ok()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
 
     pub fn count(&mut self) -> usize {
         if self.buf.is_empty() {
