@@ -38,7 +38,8 @@ pub enum AppEvent {
     ModeChange(Mode),
 
     CursorMove(i32, i32),
-    Write(char),
+    AdvanceWord,
+    Write(char), // Writes a character to the current cursor position.
 }
 
 /// Terminal event handler.

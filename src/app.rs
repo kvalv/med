@@ -1,6 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use crate::event::{AppEvent, Event, EventHandler};
+use crate::{
+    cmdbuf::{self, CmdBuf},
+    event::{AppEvent, Event, EventHandler},
+};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::DefaultTerminal;
 
@@ -15,6 +18,7 @@ pub enum Mode {
     #[default]
     Normal,
     Insert,
+    Command,
 }
 
 /// Application.
@@ -22,6 +26,8 @@ pub enum Mode {
 pub struct App {
     // Location of the cursor
     pub buf: String,
+
+    pub cmdbuf: cmdbuf::CmdBuf,
 
     pub cursor: Cursor,
 
@@ -37,11 +43,12 @@ pub struct App {
 
 impl App {
     /// Constructs a new instance of [`App`].
-    pub fn new(path: &PathBuf) -> Self {
+    pub fn new(path: &Path) -> Self {
         Self {
-            buf: std::fs::read_to_string(path.clone().to_str().unwrap()).expect("failed to read"),
+            buf: std::fs::read_to_string(path.to_str().unwrap()).expect("failed to read"),
             mode: Mode::default(),
             cursor: Cursor { col: 0, row: 0 },
+            cmdbuf: cmdbuf::CmdBuf::new(),
             running: true,
             counter: 0,
             events: EventHandler::new(),
@@ -89,7 +96,7 @@ impl App {
                             .lines()
                             .enumerate()
                             .map(|(i, line)| {
-                                if (self.cursor.row == i) {
+                                if self.cursor.row == i {
                                     let mut tmp = line.to_string();
                                     tmp.insert(self.cursor.col, c);
                                     tmp
@@ -100,6 +107,12 @@ impl App {
                             .collect::<Vec<String>>()
                             .join("\n");
                         self.cursor.col += 1;
+                    }
+                    AdvanceWord => {
+                        let count = self.cmdbuf.count();
+                        if count > 0 {
+                            todo!("Advance by n words {count}");
+                        }
                     }
                     _ => todo!(),
                 },
@@ -119,24 +132,35 @@ impl App {
             _ => {}
         }
 
-        if self.mode == Mode::Normal {
-            match key_event.code {
-                KeyCode::Char('j') => self.events.send(AppEvent::CursorMove(1, 0)),
-                KeyCode::Char('k') => self.events.send(AppEvent::CursorMove(-1, 0)),
-                KeyCode::Char('h') => self.events.send(AppEvent::CursorMove(0, -1)),
-                KeyCode::Char('l') => self.events.send(AppEvent::CursorMove(0, 1)),
-                KeyCode::Char('i') => self.events.send(AppEvent::ModeChange(Mode::Insert)),
-                KeyCode::Char('q') => self.events.send(AppEvent::Quit),
-                KeyCode::Char('0') => self.events.send(AppEvent::CursorMove(0, -9999)),
-                // TODO: respect word boundaries
-                KeyCode::Char('$') => self.events.send(AppEvent::CursorMove(0, 9999)),
-                _ => {}
-            }
-        } else {
-            match key_event.code {
+        match self.mode {
+            // if self.mode == Mode::Normal {
+            Mode::Insert => match key_event.code {
                 KeyCode::Esc => self.events.send(AppEvent::ModeChange(Mode::Normal)),
                 KeyCode::Char(c) => self.events.send(AppEvent::Write(c)),
                 _ => {}
+            },
+            Mode::Normal => {
+                match key_event.code {
+                    KeyCode::Char('i') => self.events.send(AppEvent::ModeChange(Mode::Insert)),
+                    KeyCode::Char('q') => self.events.send(AppEvent::Quit),
+                    KeyCode::Char('j') => self.events.send(AppEvent::CursorMove(1, 0)),
+                    KeyCode::Char('k') => self.events.send(AppEvent::CursorMove(-1, 0)),
+                    KeyCode::Char('h') => self.events.send(AppEvent::CursorMove(0, -1)),
+                    KeyCode::Char('l') => self.events.send(AppEvent::CursorMove(0, 1)),
+                    KeyCode::Char('0') => self.events.send(AppEvent::CursorMove(0, -9999)),
+                    KeyCode::Char('w') => self.events.send(AppEvent::AdvanceWord),
+
+                    // TODO: w, ...
+                    KeyCode::Char(c) if c.is_ascii_digit() => {
+                        // fill up the command buffer
+                        self.cmdbuf.push(c);
+                    }
+                    _ => {}
+                }
+                // } else if self.mode == Mode::Insert {
+            }
+            _ => {
+                todo!();
             }
         }
 

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use crate::app::App;
 
 pub mod app;
+pub mod cmdbuf;
 pub mod event;
 pub mod ui;
 
