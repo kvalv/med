@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::{
     cmdbuf::{self},
     event::{AppEvent, Event, EventHandler},
-    movement::next_word,
+    movement::{next_word, prev_word},
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::DefaultTerminal;
@@ -127,7 +127,7 @@ impl App {
                         } else {
                             self.cursor.col = self.buf[self.cursor.row].len();
                         }
-                    } // _ => todo!(),
+                    }
                     Movement => {
                         let verb = self
                             .cmdbuf
@@ -139,6 +139,11 @@ impl App {
                                 self.cursor.col =
                                     next_word(&self.buf[self.cursor.row], self.cursor.col, count)
                                         .unwrap_or_else(|| self.buf[self.cursor.row].len());
+                            }
+                            'b' => {
+                                self.cursor.col =
+                                    prev_word(&self.buf[self.cursor.row], self.cursor.col, count)
+                                        .unwrap_or_else(|| 0);
                             }
                             _ => {}
                         }

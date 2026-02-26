@@ -27,32 +27,25 @@ pub fn next_word(line: &str, start: usize, count: usize) -> Option<usize> {
 pub fn prev_word(line: &str, start: usize, count: usize) -> Option<usize> {
     let rest: String = line.chars().take(start).collect();
 
-    let mut res = rest.len();
-
-    dbg!(res, &rest);
-
-    let mut in_word = false;
     let mut words_visited = 0;
-    let mut res = rest.len();
+    let mut chars_back = 0;
 
-    for c in rest.chars().rev() {
-        dbg!(c);
-        if c.is_whitespace() {
-            if in_word {
-                words_visited += 1;
-                if count == words_visited {
-                    return Some(res);
-                }
-            }
-            in_word = false;
-        } else {
-            in_word = true;
+    // hello -> [(l, o), (l, l), (e, l), (h, e)]
+    for (p, c) in rest.chars().rev().skip(1).zip(rest.chars().rev()) {
+        // check for word boundary
+        if p.is_whitespace() && !c.is_whitespace() {
+            words_visited += 1;
         }
-
-        res -= 1;
+        chars_back += 1;
+        if words_visited == count {
+            return Some(start - chars_back);
+        }
     }
-    if count == words_visited {
-        return Some(res);
+
+    words_visited += 1; // start of line. that's a word boundary
+    chars_back += 1;
+    if words_visited == count {
+        return Some(start - chars_back);
     }
 
     None
@@ -77,10 +70,29 @@ mod test {
                 want: "cat",
             },
             Testcase {
-                // TODO: failing
                 input: "the cat sAt",
                 count: 1,
-                want: "sat",
+                want: "sAt",
+            },
+            Testcase {
+                input: "the cat Sat",
+                count: 2,
+                want: "the",
+            },
+            Testcase {
+                input: "the cat sAt",
+                count: 2,
+                want: "cat",
+            },
+            Testcase {
+                input: "the cat    sAt",
+                count: 2,
+                want: "cat",
+            },
+            Testcase {
+                input: "the cat    sAt",
+                count: 8,
+                want: "",
             },
         ];
 
