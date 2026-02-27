@@ -1,11 +1,12 @@
+use crate::buffer::Buffer;
 use std::path::Path;
 
 use crate::{
     cmdbuf::{self},
     event::{AppEvent, Event, EventHandler},
-    movement::{next_word, prev_word},
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use log::info;
 use ratatui::DefaultTerminal;
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
@@ -36,12 +37,11 @@ impl std::fmt::Display for Mode {
 pub struct App {
     // Location of the cursor
     pub filename: String,
-    pub buf: Vec<String>,
+    pub buf: Buffer,
 
     pub cmdbuf: cmdbuf::CmdBuf,
 
-    pub cursor: Cursor,
-
+    // pub cursor: Cursor,
     pub mode: Mode,
 
     /// Is the application running?
@@ -55,15 +55,13 @@ pub struct App {
 impl App {
     /// Constructs a new instance of [`App`].
     pub fn new(path: &Path) -> Self {
+        let content: String = std::fs::read_to_string(path.to_str().unwrap()).unwrap();
+
         Self {
             filename: path.to_str().unwrap().to_string(),
-            buf: std::fs::read_to_string(path.to_str().unwrap())
-                .unwrap()
-                .lines()
-                .map(|str| str.to_string())
-                .collect(),
+            buf: Buffer::from(content.as_str()),
             mode: Mode::default(),
-            cursor: Cursor { col: 0, row: 0 },
+            // cursor: Cursor { col: 0, row: 0 },
             cmdbuf: cmdbuf::CmdBuf::new(),
             running: true,
             counter: 0,
@@ -74,9 +72,6 @@ impl App {
     /// Run the application's main loop.
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
         use AppEvent::*;
-
-        let row = self.cursor.row;
-        let col = self.cursor.col;
 
         while self.running {
             terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
@@ -92,41 +87,21 @@ impl App {
                 },
                 Event::App(app_event) => match app_event {
                     Quit => self.quit(),
-                    CursorMove(i, j) => {
-                        self.cursor = Cursor {
-                            row: if i > 0 {
-                                self.cursor.row.saturating_add(i as usize)
-                            } else {
-                                self.cursor.row.saturating_sub(-i as usize)
-                            },
-                            col: if j > 0 {
-                                self.cursor.col.saturating_add(j as usize)
-                            } else {
-                                self.cursor.col.saturating_sub(-j as usize)
-                            },
-                        }
+                    CursorMove(delta_row, delta_col) => {
+                        let row = self.buf.row.saturating_add_signed(delta_row as isize);
+                        let col = self.buf.col.saturating_add_signed(delta_col as isize);
+                        info!("CursorMove: target is row {}, col {}", row, col);
+                        self.buf.position(row, col);
                     }
                     ModeChange(mode) => {
                         self.mode = mode;
                     }
                     Write(c) => {
-                        if let Some(line) = self.buf.get_mut(self.cursor.row) {
-                            line.insert(self.cursor.col, c);
-                        }
-                        self.cursor.col += 1;
+                        // self.buf.position(self.cursor.row, self.cursor.col);
+                        self.buf.insert(c);
                     }
                     AdvanceWord => {
                         panic!("No more");
-                        let count = self.cmdbuf.count();
-                        if count > 1 {
-                            todo!("Advance by n words {count}");
-                        }
-                        let j = next_word(&self.buf[self.cursor.row], self.cursor.col, count);
-                        if let Some(j) = j {
-                            self.cursor.col = j;
-                        } else {
-                            self.cursor.col = self.buf[self.cursor.row].len();
-                        }
                     }
                     Movement => {
                         let verb = self
@@ -136,20 +111,18 @@ impl App {
                         let count = self.cmdbuf.pop_count().unwrap_or(1);
                         match verb {
                             'w' => {
-                                self.cursor.col =
-                                    next_word(&self.buf[self.cursor.row], self.cursor.col, count)
-                                        .unwrap_or_else(|| self.buf[self.cursor.row].len());
+                                info!("Advance word by {count}");
+                                self.buf.advance_word(count as isize);
                             }
                             'b' => {
-                                self.cursor.col =
-                                    prev_word(&self.buf[self.cursor.row], self.cursor.col, count)
-                                        .unwrap_or_else(|| 0);
+                                info!("Advance word backwards by {count}");
+                                self.buf.advance_word(-(count as isize));
                             }
                             _ => {}
                         }
                     }
                     BufWrite => {
-                        std::fs::write(&self.filename, self.buf.join("\n"))?;
+                        std::fs::write(&self.filename, self.buf.text())?;
                     }
                 },
             }
@@ -191,6 +164,11 @@ impl App {
                     KeyCode::Char(c @ ('w' | 'b')) => {
                         self.cmdbuf.push(c);
                         self.events.send(AppEvent::Movement);
+                    }
+                    KeyCode::Char('x') => {
+                        let count = self.cmdbuf.pop_count().unwrap_or(1);
+                        self.buf.backspace(count);
+                        info!("{count}x backspace");
                     }
 
                     // TODO: w, ...

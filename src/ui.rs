@@ -23,24 +23,29 @@ impl Widget for &App {
             .border_type(BorderType::Rounded);
 
         // read
-        let text = self.buf.clone();
+        let text = self
+            .buf
+            .text()
+            .lines()
+            .map(|line| format!("{}\n", line))
+            .collect::<Vec<_>>();
 
         let v: Vec<_> = text
             .iter()
             .enumerate()
             .map(|(i, line)| {
-                if self.cursor.row == i {
+                if self.buf.row == i {
                     // split into three?
                     // let mut spans: Vec<Span> ;
                     let mut spans = vec![];
-                    let lhs: String = line.chars().take(self.cursor.col).collect();
+                    let lhs: String = line.chars().take(self.buf.col).collect();
                     if !lhs.is_empty() {
                         spans.push(Span::from(lhs));
                     }
-                    if let Some(c) = line.chars().nth(self.cursor.col) {
+                    if let Some(c) = line.chars().nth(self.buf.col) {
                         spans.push(Span::from(String::from(c)).bg(Color::Red))
                     }
-                    let rhs: String = line.chars().skip(self.cursor.col + 1).collect();
+                    let rhs: String = line.chars().skip(self.buf.col + 1).collect();
                     if !rhs.is_empty() {
                         spans.push(Span::from(rhs));
                     }
@@ -77,12 +82,19 @@ impl Widget for &App {
     }
 }
 
-fn render_cmd(app: &App) -> Line {
+fn render_cmd(app: &App) -> Line<'_> {
     match app.mode {
         Mode::Command => Line::from(vec![
-            format!(":{}", app.cmdbuf.to_string()).into(),
+            format!(":{}", app.cmdbuf).into(),
             Span::from(" ").bg(Color::White),
         ]),
-        _ => format!("{}", app.mode).into(),
+        _ => format!(
+            "{} -- line {} row {} -- `{}`",
+            app.mode,
+            app.buf.row,
+            app.buf.col,
+            Span::from(app.buf.current_line()).fg(Color::Red),
+        )
+        .into(),
     }
 }
