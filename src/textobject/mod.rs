@@ -1,6 +1,4 @@
-use crate::span::{Location, Span};
-
-enum TextObject {
+pub enum TextObject {
     Block,
     Word,
     // Paren, // ()
@@ -8,15 +6,7 @@ enum TextObject {
 }
 
 pub enum Boundary {
+    Current, // From current location. I would like to use 'None', but that would be bad.
     Inner,
     Around,
 }
-
-/// For given text and location of cursor, figure out what characters are included in the
-/// obj+boundary
-pub fn span(text: &str, cursor: Location, boundary: Boundary, obj: TextObject) -> Option<Span> {
-    None
-}
-
-#[cfg(test)]
-mod tests;

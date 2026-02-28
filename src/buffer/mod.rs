@@ -12,6 +12,8 @@ use std::char;
 
 use log::{info, warn};
 
+use crate::textobject::{Boundary, TextObject};
+
 /// A Buffer represents a file that is being edited.
 /// Implemented as a gap buffer
 #[derive(Debug)]
@@ -141,6 +143,59 @@ impl Buffer {
         }
     }
 
+    fn advance_while<T: Fn(char) -> bool>(&self, start: usize, cond: T) -> usize {
+        let mut i = 0;
+        loop {
+            if start + i >= self.buf.len() {
+                return start + i;
+            }
+            let c = self.buf[start + i];
+            if !cond(c) {
+                return start + i;
+            }
+            i += 1;
+        }
+    }
+
+    pub fn d(&mut self, count: usize, boundary: Boundary, obj: TextObject) {
+        use Boundary::*;
+        use TextObject::*;
+        match (boundary, obj) {
+            (Current, Word) => {
+                for _ in 0..count {
+                    // munch words until we're at
+                    let xx = self.advance_while(self.d, |c| is_word(c));
+                    self.d = self.advance_while(xx, is_blank);
+
+                    if self.is_eol() {
+                        // If we are at the end of the line, we want to
+                        // move the cursor left a bit
+                        self.left(1);
+                    }
+                }
+            }
+            (Inner, Word) => {
+                for i in 0..100 {
+                    if !is_word(self.buf[self.c - i]) {
+                        // ... we are done.
+                        self.c -= i;
+                        break;
+                    }
+                }
+
+                for i in 0..100 {
+                    if !is_word(self.buf[self.d + i]) {
+                        self.d += i;
+                        break;
+                    }
+                }
+            }
+            (Around, Word) => {}
+
+            _ => todo!(),
+        }
+    }
+
     /// Moves to a particular line
     pub fn position(&mut self, row: usize, col: usize) {
         let num_rows = self.text().lines().count();
@@ -175,6 +230,10 @@ impl Buffer {
             }
         }
         warn!("Max iterations reached");
+    }
+
+    fn is_eol(&self) -> bool {
+        self.next_char().is_none() || self.next_char() == Some('\n')
     }
 
     /// Inserts to the left of the cursor.
@@ -464,6 +523,18 @@ impl Buffer {
         }
         warn!("hit iteration limit in eol - probably a bug");
     }
+}
+
+// sequence of letters, digits, underscores, or a sequence of other
+// non-blank characters.
+fn is_word(c: char) -> bool {
+    c.is_alphanumeric()
+}
+fn is_WORD(c: char) -> bool {
+    is_word(c) // TODO
+}
+fn is_blank(c: char) -> bool {
+    c.is_whitespace() || c == '\n'
 }
 
 impl Iterator for Buffer {

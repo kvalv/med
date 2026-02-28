@@ -2,7 +2,7 @@ use crate::buffer::Buffer;
 use std::path::Path;
 
 use crate::{
-    cmdbuf::{self},
+    cmd::{self},
     event::{AppEvent, Event, EventHandler},
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -39,7 +39,7 @@ pub struct App {
     pub filename: String,
     pub buf: Buffer,
 
-    pub cmdbuf: cmdbuf::CmdBuf,
+    pub cmdbuf: cmd::CmdBuf,
 
     pub msg: Option<String>,
 
@@ -57,16 +57,18 @@ impl App {
     pub fn new(path: &Path) -> Self {
         let content: String = std::fs::read_to_string(path.to_str().unwrap()).unwrap();
 
-        Self {
+        let s = Self {
             filename: path.to_str().unwrap().to_string(),
             buf: Buffer::from(content.as_str()),
             msg: None,
             mode: Mode::default(),
             // cursor: Cursor { col: 0, row: 0 },
-            cmdbuf: cmdbuf::CmdBuf::new(),
+            cmdbuf: cmd::CmdBuf::new(),
             running: true,
             events: EventHandler::new(),
-        }
+        };
+
+        s
     }
 
     /// Run the application's main loop.
@@ -255,7 +257,7 @@ impl App {
                     self.events.send(AppEvent::ExCommandSubmit);
                 }
                 KeyCode::Esc => {
-                    self.cmdbuf = cmdbuf::CmdBuf::new();
+                    self.cmdbuf = cmd::CmdBuf::new();
                     self.events.send(AppEvent::ModeChange(Mode::Normal));
                 }
                 KeyCode::Char(c) => {

@@ -5,10 +5,10 @@ use crate::app::App;
 
 pub mod app;
 pub mod buffer;
-pub mod cmdbuf;
+pub mod cmd;
 pub mod event;
-mod span;
-mod textobject;
+pub mod span;
+pub mod textobject;
 pub mod ui;
 
 fn setup_logger() -> Result<(), fern::InitError> {
