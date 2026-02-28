@@ -20,14 +20,14 @@ pub enum Mode {
     #[default]
     Normal,
     Insert,
-    Command,
+    ExCommand,
 }
 impl std::fmt::Display for Mode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Mode::Normal => write!(f, "NORMAL"),
             Mode::Insert => write!(f, "INSERT"),
-            Mode::Command => write!(f, "COMMAND"),
+            Mode::ExCommand => write!(f, "EXCOMMAND"),
         }
     }
 }
@@ -41,13 +41,13 @@ pub struct App {
 
     pub cmdbuf: cmdbuf::CmdBuf,
 
+    pub msg: Option<String>,
+
     // pub cursor: Cursor,
     pub mode: Mode,
 
     /// Is the application running?
     pub running: bool,
-    /// Counter.
-    pub counter: u8,
     /// Event handler.
     pub events: EventHandler,
 }
@@ -60,11 +60,11 @@ impl App {
         Self {
             filename: path.to_str().unwrap().to_string(),
             buf: Buffer::from(content.as_str()),
+            msg: None,
             mode: Mode::default(),
             // cursor: Cursor { col: 0, row: 0 },
             cmdbuf: cmdbuf::CmdBuf::new(),
             running: true,
-            counter: 0,
             events: EventHandler::new(),
         }
     }
@@ -87,21 +87,20 @@ impl App {
                 },
                 Event::App(app_event) => match app_event {
                     Quit => self.quit(),
-                    CursorMove(delta_row, delta_col) => {
-                        let row = self.buf.row.saturating_add_signed(delta_row as isize);
-                        let col = self.buf.col.saturating_add_signed(delta_col as isize);
-                        info!("CursorMove: target is row {}, col {}", row, col);
-                        self.buf.position(row, col);
-                    }
                     ModeChange(mode) => {
+                        if self.mode == Mode::Insert && mode == Mode::Normal {
+                            self.buf.left(1); // move cursor back one left
+                        }
+                        if mode == Mode::ExCommand || mode == Mode::Insert {
+                            self.clear_msg();
+                        }
                         self.mode = mode;
+                        self.buf.clear_target_col();
                     }
                     Write(c) => {
                         // self.buf.position(self.cursor.row, self.cursor.col);
+                        // self.buf.left(1);
                         self.buf.insert(c);
-                    }
-                    AdvanceWord => {
-                        panic!("No more");
                     }
                     Movement => {
                         let verb = self
@@ -112,11 +111,38 @@ impl App {
                         match verb {
                             'w' => {
                                 info!("Advance word by {count}");
-                                self.buf.advance_word(count as isize);
+                                self.buf.w(count);
+                                self.buf.clear_target_col();
                             }
                             'b' => {
                                 info!("Advance word backwards by {count}");
-                                self.buf.advance_word(-(count as isize));
+                                self.buf.b(count);
+                                self.buf.clear_target_col();
+                            }
+                            'e' => {
+                                info!("Advance to end of word by {count}");
+                                self.buf.e(count);
+                            }
+                            'h' => {
+                                info!("Move left by {count}");
+                                self.buf.h(count);
+                            }
+                            'j' => {
+                                info!("Move down by {count}");
+                                self.buf.j(count);
+                            }
+                            'k' => {
+                                info!("Move up by {count}");
+                                self.buf.k(count);
+                            }
+                            'l' => {
+                                info!("Move right by {count}");
+                                self.buf.l(count);
+                            }
+                            '0' => {
+                                info!("Move to beginning of line");
+                                self.buf.position(self.buf.row, 0);
+                                self.buf.clear_target_col();
                             }
                             _ => {}
                         }
@@ -124,10 +150,41 @@ impl App {
                     BufWrite => {
                         std::fs::write(&self.filename, self.buf.text())?;
                     }
+                    ExCommandSubmit => {
+                        let cmd = self.cmdbuf.drain().collect::<String>();
+                        info!("Command submitted: {}", cmd);
+                        match cmd.as_str() {
+                            "w" | "wr" | "wri" | "writ" | "write" => {
+                                self.events.send(AppEvent::BufWrite);
+                                self.set_msg(format!("Wrote to file {}", self.filename));
+                            }
+                            "q" | "qu" | "qui" | "quit" => {
+                                self.events.send(AppEvent::Quit);
+                            }
+                            "wq" => {
+                                self.events.send(AppEvent::BufWrite);
+                                self.events.send(AppEvent::Quit);
+                            }
+                            _ => {
+                                info!("Unknown command: {}", cmd);
+                            }
+                        }
+
+                        self.events.send(AppEvent::ModeChange(Mode::Normal));
+                    }
                 },
             }
         }
         Ok(())
+    }
+
+    fn set_msg(&mut self, msg: String) {
+        self.msg = Some(msg);
+        info!("Message set: {}", self.msg.as_ref().unwrap());
+    }
+    fn clear_msg(&mut self) {
+        self.msg = None;
+        info!("Message cleared");
     }
 
     /// Handles the key events and updates the state of [`App`].
@@ -146,29 +203,42 @@ impl App {
             Mode::Insert => match key_event.code {
                 KeyCode::Esc => self.events.send(AppEvent::ModeChange(Mode::Normal)),
                 KeyCode::Char(c) => self.events.send(AppEvent::Write(c)),
+                KeyCode::Enter => self.events.send(AppEvent::Write('\n')),
                 _ => {}
             },
             Mode::Normal => {
                 match key_event.code {
                     KeyCode::Char('i') => self.events.send(AppEvent::ModeChange(Mode::Insert)),
                     KeyCode::Char(':' | ';') => {
-                        self.events.send(AppEvent::ModeChange(Mode::Command))
+                        self.events.send(AppEvent::ModeChange(Mode::ExCommand))
                     }
                     KeyCode::Char('q') => self.events.send(AppEvent::Quit),
-                    KeyCode::Char('j') => self.events.send(AppEvent::CursorMove(1, 0)),
-                    KeyCode::Char('k') => self.events.send(AppEvent::CursorMove(-1, 0)),
-                    KeyCode::Char('h') => self.events.send(AppEvent::CursorMove(0, -1)),
-                    KeyCode::Char('l') => self.events.send(AppEvent::CursorMove(0, 1)),
-                    KeyCode::Char('0') => self.events.send(AppEvent::CursorMove(0, -9999)),
-                    // KeyCode::Char('w') => self.events.send(AppEvent::AdvanceWord),
-                    KeyCode::Char(c @ ('w' | 'b')) => {
+                    KeyCode::Char('$') => {
+                        self.buf.eol();
+                    }
+                    KeyCode::Char(c @ ('w' | 'b' | 'e' | 'h' | 'j' | 'k' | 'l' | '0')) => {
                         self.cmdbuf.push(c);
                         self.events.send(AppEvent::Movement);
                     }
                     KeyCode::Char('x') => {
                         let count = self.cmdbuf.pop_count().unwrap_or(1);
-                        self.buf.backspace(count);
+                        self.buf.x(count);
                         info!("{count}x backspace");
+                    }
+                    KeyCode::Char('A') => {
+                        self.buf.eol();
+                        self.buf.right(1);
+                        self.events.send(AppEvent::ModeChange(Mode::Insert));
+                    }
+                    KeyCode::Char('a') => {
+                        self.buf.right(1);
+                        self.events.send(AppEvent::ModeChange(Mode::Insert));
+                    }
+                    KeyCode::Char('o') => {
+                        self.buf.eol();
+                        self.buf.l(1);
+                        self.buf.insert('\n');
+                        self.events.send(AppEvent::ModeChange(Mode::Insert));
                     }
 
                     // TODO: w, ...
@@ -180,13 +250,9 @@ impl App {
                 }
                 // } else if self.mode == Mode::Insert {
             }
-            _ => match key_event.code {
+            Mode::ExCommand => match key_event.code {
                 KeyCode::Enter => {
-                    match self.cmdbuf.drain().collect::<String>().as_str() {
-                        "w" => self.events.send(AppEvent::BufWrite),
-                        w => todo!("implement cmd for {w}"),
-                    }
-                    // todo!("Handle enter key in command mode");
+                    self.events.send(AppEvent::ExCommandSubmit);
                 }
                 KeyCode::Esc => {
                     self.cmdbuf = cmdbuf::CmdBuf::new();
@@ -195,8 +261,10 @@ impl App {
                 KeyCode::Char(c) => {
                     self.cmdbuf.push(c);
                 }
-                _ => todo!("Handle other keys in command mode"),
+                _ => {}
             },
+            #[allow(unreachable_patterns)]
+            _ => panic!("Unknown mode"),
         }
 
         Ok(())
@@ -211,13 +279,5 @@ impl App {
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
         self.running = false;
-    }
-
-    pub fn increment_counter(&mut self) {
-        self.counter = self.counter.saturating_add(1);
-    }
-
-    pub fn decrement_counter(&mut self) {
-        self.counter = self.counter.saturating_sub(1);
     }
 }

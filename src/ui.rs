@@ -1,3 +1,4 @@
+use log::info;
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
@@ -43,7 +44,11 @@ impl Widget for &App {
                         spans.push(Span::from(lhs));
                     }
                     if let Some(c) = line.chars().nth(self.buf.col) {
-                        spans.push(Span::from(String::from(c)).bg(Color::Red))
+                        if c == '\n' {
+                            spans.push(Span::from(" ").bg(Color::Red));
+                        } else {
+                            spans.push(Span::from(String::from(c)).bg(Color::Red))
+                        }
                     }
                     let rhs: String = line.chars().skip(self.buf.col + 1).collect();
                     if !rhs.is_empty() {
@@ -51,7 +56,7 @@ impl Widget for &App {
                     }
                     Line::from(spans)
                 } else {
-                    Line::from(line.clone()).fg(Color::Blue)
+                    Line::from(line.clone())
                 }
             })
             .collect();
@@ -78,18 +83,22 @@ impl Widget for &App {
 
         // Command palette
         // format!("{}", &self.mode).italic().render(footer_area, buf);
-        render_cmd(self).italic().render(footer_area, buf);
+        render_footer(self).italic().render(footer_area, buf);
     }
 }
 
-fn render_cmd(app: &App) -> Line<'_> {
+fn render_footer(app: &App) -> Line<'_> {
+    if let Some(msg) = &app.msg {
+        return Line::from(msg.clone()).fg(Color::Green);
+    }
+
     match app.mode {
-        Mode::Command => Line::from(vec![
+        Mode::ExCommand => Line::from(vec![
             format!(":{}", app.cmdbuf).into(),
             Span::from(" ").bg(Color::White),
         ]),
         _ => format!(
-            "{} -- line {} row {} -- `{}`",
+            "{} -- row {} col {} -- `{}`",
             app.mode,
             app.buf.row,
             app.buf.col,

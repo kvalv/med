@@ -8,6 +8,8 @@
 // write: just insert, unless need to grow. if need grow -> grow, then insert
 // remove? move pointer to the left.
 
+use std::char;
+
 use log::{info, warn};
 
 /// A Buffer represents a file that is being edited.
@@ -20,6 +22,10 @@ pub struct Buffer {
 
     pub row: usize,
     pub col: usize,
+
+    // when moving up or donw, the target column is what the desired column is to be at given
+    // enough caracters, when doing jjjj or kkkk
+    target_col: Option<usize>,
 }
 
 // Display
@@ -38,6 +44,7 @@ impl From<&str> for Buffer {
         for c in value.chars() {
             buffer.insert(c);
         }
+        buffer.position(0, 0);
         buffer
     }
 }
@@ -47,6 +54,7 @@ impl Buffer {
         Self {
             row: 0,
             col: 0,
+            target_col: None,
             buf: vec!['x'; cap],
             c: 0,
             d: cap,
@@ -59,8 +67,25 @@ impl Buffer {
             .chain(self.buf.iter().skip(self.d))
             .collect()
     }
-    fn left(&mut self, n: usize) {
-        for _ in 0..n {
+
+    pub fn h(&mut self, size: usize) {
+        if self.col == 0 {
+            return;
+        }
+        self.left(size);
+        self.target_col = None;
+    }
+    pub fn l(&mut self, size: usize) {
+        if self.next_char().map(|c| c == '\n').unwrap_or(true) {
+            return;
+        }
+        self.right(size);
+        self.target_col = None;
+    }
+
+    /// Move left
+    pub fn left(&mut self, count: usize) {
+        for _ in 0..count {
             if self.c == 0 {
                 return;
             }
@@ -73,7 +98,15 @@ impl Buffer {
             if recv == '\n' {
                 self.row = self.row.saturating_sub(1);
                 // we need to recalculate col by counting chars until the next newline
-                self.col = self.text().chars().rev().take_while(|c| *c != '\n').count();
+                // this is almost certainly wrong
+
+                self.col = 0;
+                for i in (0..self.c - 1).rev() {
+                    if self.buf[i] == '\n' {
+                        break;
+                    }
+                    self.col += 1;
+                }
             } else {
                 self.col = self.col.saturating_sub(1);
             }
@@ -83,9 +116,11 @@ impl Buffer {
             self.d -= 1;
         }
     }
-    fn right(&mut self, n: usize) {
-        for _ in 0..n {
-            if self.d == self.buf.len() {
+
+    /// Move right
+    pub fn right(&mut self, count: usize) {
+        for _ in 0..count {
+            if self.d == self.buf.len() - 1 {
                 return;
             }
 
@@ -108,56 +143,41 @@ impl Buffer {
 
     /// Moves to a particular line
     pub fn position(&mut self, row: usize, col: usize) {
-        let mut r = 0;
-        let last_row = self.text().chars().filter(|c| *c == '\n').count() - 1;
-        let num_rows = last_row + 1;
+        let num_rows = self.text().lines().count();
+        if row > num_rows {
+            warn!("Not yet implemented: go outside of file");
+            return;
+        }
 
-        for (i, c) in self.text().chars().enumerate() {
-            if c == '\n' {
-                r += 1;
-            }
-            if row == r || r == last_row {
-                // we found the row!
-                // let dst = i + col + 1;
-                // let mut dst = i;
-                let col2 = if r == last_row && row > num_rows {
-                    999
-                } else {
-                    col
-                };
+        // println!("Starting position {}, {} ", self.row, self.col);
 
-                let j = self
-                    .text()
-                    .chars()
-                    .skip(i + 1)
-                    .take_while(|c| *c != '\n')
-                    .count()
-                    .saturating_sub(1)
-                    .min(col2);
-                let dst = i + j + 1;
+        for _ in 0..100 {
+            // println!(
+            //     "Position: {},{} target {},{} - next '{}'",
+            //     self.row,
+            //     self.col,
+            //     row,
+            //     col,
+            //     self.next_char().unwrap_or('_'),
+            //     // self.current_char()
+            // );
 
-                // println!(
-                //     "found the line row={} dst={} cursor at {} - going {} {} steps",
-                //     row,
-                //     dst,
-                //     self.c,
-                //     if dst > self.c { "left" } else { "right" },
-                //     (dst as i32 - self.c as i32).abs(),
-                // );
-
-                if dst > self.c {
-                    self.right(dst - self.c);
-                } else {
-                    self.left(self.c - dst);
-                }
-
-                self.row = row;
-                self.col = j;
-
+            if self.row < row {
+                self.right(1);
+            } else if self.row > row {
+                self.left(1);
+            } else if self.col < col && self.next_char().map(|c| c != '\n').unwrap_or(false) {
+                self.right(1);
+            } else if self.col > col {
+                self.left(1);
+            } else {
                 return;
             }
         }
+        warn!("Max iterations reached");
     }
+
+    /// Inserts to the left of the cursor.
     pub fn insert(&mut self, v: char) {
         if self.c == self.d {
             self.grow();
@@ -172,6 +192,7 @@ impl Buffer {
             self.col += 1;
         }
     }
+
     pub fn backspace(&mut self, count: usize) {
         if count == 0 {
             return;
@@ -201,26 +222,46 @@ impl Buffer {
         self.buf = buf;
     }
 
-    /// Returns the number of characters advanced
-    pub fn advance_word(&mut self, count: isize) {
-        if count < 0 {
-            self.prev_word((-count) as usize);
-            return;
+    pub fn x(&mut self, count: usize) {
+        for _ in 0..count {
+            if self.current_char() == '\n' {
+                self.backspace(1);
+            } else {
+                self.d += 1;
+            }
         }
+    }
+
+    /// vim-motion, go forward by word
+    pub fn w(&mut self, count: usize) {
         if count == 0 {
             info!(
                 "count is 0, doing nothing - current char '{}' at index {}",
                 self.current_char(),
                 self.c,
             );
+            return;
         }
 
         let mut words_visited = 0;
 
-        for _ in 0..10_000 {
+        const LIMIT: usize = 20;
+
+        for _ in 0..LIMIT {
+            // self.show();
+            let prev_is_whitespace = self.current_char().is_whitespace();
             self.right(1);
             let curr_is_word = !self.current_char().is_whitespace();
-            let prev_is_whitespace = self.prev_char().map(|x| x.is_whitespace()).unwrap_or(false);
+
+            // println!(
+            //     "curr '{}', prev '{}', cw={}, pw={}, wv={} index={}",
+            //     self.current_char(),
+            //     self.prev_char().unwrap_or(' '),
+            //     curr_is_word,
+            //     prev_is_whitespace,
+            //     words_visited,
+            //     self.c,
+            // );
 
             if curr_is_word && prev_is_whitespace {
                 words_visited += 1;
@@ -233,7 +274,23 @@ impl Buffer {
         warn!("hit iteration limit in advance_word - probably a bug");
     }
 
-    fn prev_word(&mut self, count: usize) {
+    pub fn e(&mut self, count: usize) {
+        for _ in 0..count {
+            loop {
+                self.right(1);
+                let c = self.current_char();
+                let d = self.next_char().unwrap_or(' ');
+
+                let at_boundary = !c.is_whitespace() && d.is_whitespace();
+                if at_boundary {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// vim-motion, go back by word
+    pub fn b(&mut self, count: usize) {
         // if start of word, then actually go to first char of next word,
         // otherwise it's start of word
         if count == 0 {
@@ -241,37 +298,131 @@ impl Buffer {
         }
 
         // Move at least one letter left
-        self.left(1);
 
-        for _ in 0..50 {
-            let curr_is_word = !self.current_char().is_whitespace();
-            let prev_is_whitespace = self.prev_char().map(|x| x.is_whitespace()).unwrap_or(false);
+        for i in 0..50 {
+            let right = self.current_char();
+            self.left(1);
+            let left = self.current_char();
+            // but we are on the left now! Need to ... mvoe back?
+            let is_boundary = left.is_whitespace() && !right.is_whitespace() && i > 0;
 
-            let is_boundary = curr_is_word && prev_is_whitespace;
+            // println!(
+            //     "left='{}', right='{}', index={}, boundary={}, count={}",
+            //     left, right, self.c, is_boundary, count
+            // );
+
             if is_boundary {
+                self.right(1); // I hate this
                 if count > 0 {
-                    return self.prev_word(count - 1);
+                    return self.b(count - 1);
                 }
                 return;
             }
-            self.left(1);
         }
         warn!("prev_word: hit iteration limit, probably at start of file");
+    }
+
+    pub fn clear_target_col(&mut self) {
+        self.target_col = None;
+    }
+
+    pub fn j(&mut self, count: usize) {
+        if self.target_col.is_none() {
+            self.target_col = Some(self.col);
+            info!("setting target_col to {}", self.col);
+        }
+
+        for _ in 0..count {
+            if self.row == self.num_lines() - 1 {
+                return;
+            }
+
+            // let's move forward until we meet a new line. After that we'll move
+            // forward until we either reach target_col, or we reach another newline
+
+            while self.current_char() != '\n' {
+                self.right(1);
+            }
+
+            for _ in 0..self.target_col.unwrap() + 1 {
+                self.right(1);
+                if self.next_char().map(|c| c == '\n').unwrap_or(true) {
+                    break;
+                }
+            }
+        }
+    }
+
+    pub fn k(&mut self, count: usize) {
+        if self.target_col.is_none() {
+            self.target_col = Some(self.col);
+            info!("setting target_col to {}", self.col);
+        }
+
+        for _ in 0..count {
+            // let's move backward until we meet a new line. After that we'll move
+            // backward until we either reach another newline or start of buffer
+
+            if self.row == 0 {
+                return;
+            }
+
+            let mut maxiter = 0;
+
+            while self.current_char() != '\n' {
+                self.left(1);
+                maxiter += 1;
+                if maxiter > 1000 {
+                    panic!("hit iteration limit in k - probably a bug");
+                }
+            }
+
+            // now let's move to start of line...
+            self.left(1);
+            while self.col > 0 {
+                self.left(1);
+                maxiter += 1;
+                if maxiter > 1000 {
+                    panic!("hit iteration limit in k - probably a bug");
+                }
+            }
+
+            // ... and let's now move forward, like in the j case
+            for _ in 0..self.target_col.unwrap() {
+                if self.next_char().map(|c| c == '\n').unwrap_or(true) {
+                    break;
+                }
+                self.right(1);
+            }
+        }
     }
 
     pub fn current_line(&self) -> String {
         self.text().lines().nth(self.row).unwrap_or("").to_string()
     }
 
-    /// returns the char the cursor is currently located at
-    fn current_char(&self) -> char {
-        self.buf[self.c]
+    fn num_lines(&self) -> usize {
+        self.text().lines().count()
     }
+
     fn prev_char(&self) -> Option<char> {
         if self.c == 0 {
             None
         } else {
             Some(self.buf[self.c - 1])
+        }
+    }
+
+    /// returns the char the cursor is currently located at
+    fn current_char(&self) -> char {
+        // How the hell do I know if I read from c or d?
+        self.buf[self.d]
+    }
+    fn next_char(&self) -> Option<char> {
+        if self.d >= self.buf.len() - 1 {
+            None
+        } else {
+            Some(self.buf[self.d + 1])
         }
     }
 
@@ -286,222 +437,47 @@ impl Buffer {
         v2[self.c] = 'C';
         v2[self.d] = 'D';
         let s2: String = v2.iter().collect();
-        format!("{}\n{}", s, s2)
+        let s3 = format!("\n{}\n{}", s, s2);
+        println!("{}", s3);
+        s3
+    }
+
+    pub fn eol(&mut self) {
+        info!("next is eol: {}", self.next_char().is_none());
+        const LIMIT: usize = 150;
+        for _ in 0..LIMIT {
+            match self.next_char() {
+                None | Some('\n') => {
+                    info!("at eol, current char '{}'", self.current_char());
+                    self.target_col = Some(9999); // always be eol'ing
+                    return;
+                }
+                Some(c) => {
+                    info!(
+                        "not at eol, met '{}' and curr is {}",
+                        c,
+                        self.current_char()
+                    );
+                    self.right(1);
+                }
+            }
+        }
+        warn!("hit iteration limit in eol - probably a bug");
+    }
+}
+
+impl Iterator for Buffer {
+    type Item = char;
+    fn next(&mut self) -> Option<char> {
+        if self.d < self.buf.len() {
+            let c = self.buf[self.d];
+            self.right(1);
+            Some(c)
+        } else {
+            None
+        }
     }
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn simple() {
-        let mut g = Buffer::new(10);
-        g.insert('h');
-        g.insert('i');
-        assert_eq!(g.text(), "hi");
-    }
-
-    #[test]
-    fn left() {
-        let mut g = Buffer::new(10);
-        g.insert('h');
-        g.insert('i');
-        g.left(1);
-        g.insert('a');
-        g.show();
-        assert_eq!(g.text(), "hai");
-    }
-
-    #[test]
-    fn backspace() {
-        let mut g = Buffer::new(10);
-        g.insert('h');
-        g.insert('i');
-        g.left(1);
-        g.backspace(1);
-        g.show();
-        assert_eq!(g.text(), "i");
-    }
-
-    #[test]
-    fn grow() {
-        let mut g = Buffer::new(3);
-        g.insert('1');
-        g.insert('2');
-        g.insert('3');
-        g.insert('4');
-        assert_eq!(g.text(), "1234", "Failed:\n{}\n", g.show());
-    }
-
-    #[test]
-    fn more_cases() {
-        let cases: Vec<(&str, &str)> = vec![
-            ("12X3", "13"),
-            ("11LL22LL33", "332211"),
-            ("1L2RR3", "213"),
-            ("1LR2", "12"),
-        ];
-
-        for (i, (seq, want)) in cases.into_iter().enumerate() {
-            let mut g = Buffer::new(10);
-            for cmd in seq.chars() {
-                match cmd {
-                    'X' => g.backspace(1),
-                    'L' => g.left(1),
-                    'R' => g.right(1),
-                    '0'..='9' => g.insert(cmd),
-                    _ => panic!("unknown character '{}'", cmd),
-                }
-            }
-            assert_eq!(want, g.text(), "Case {} failed: \n{}", i, g.show());
-        }
-    }
-
-    #[test]
-    fn text_line_count() {
-        let g = Buffer::from("the cat\nsat in\na tree");
-        assert_eq!(g.text().lines().count(), 3);
-    }
-
-    #[test]
-    fn newlines() {
-        let mut g = Buffer::from("the cat\nsat in\na tree");
-        assert_eq!("the cat\nsat in\na tree", g.text());
-
-        g.position(2, 2); // 'a t' -> t
-        assert_eq!('t', g.current_char());
-
-        assert_eq!(2, g.row);
-        assert_eq!(2, g.col);
-
-        g.position(0, 100);
-        assert_eq!('t', g.current_char());
-        assert_eq!(0, g.row);
-        // assert_eq!(6, g.col); // TODO
-
-        g.position(1, 0);
-        assert_eq!('s', g.current_char());
-        assert_eq!("the cat\nsat in\na tree", g.text());
-        assert_eq!(1, g.row);
-        assert_eq!(0, g.col);
-
-        // TODO: this ain't working yet
-        // g.position(5, 0); // last line, last char
-        // println!("{}", g.show());
-        // assert_eq!('e', g.current_char());
-    }
-
-    #[test]
-    fn test_advance_word_forward() {
-        struct Testcase {
-            input: &'static str,
-            count: isize,
-            want_char: char,
-        }
-
-        let cases = [
-            Testcase {
-                input: "The cat sat",
-                count: 1,
-                want_char: 'c',
-            },
-            Testcase {
-                input: "The cat sat",
-                count: 2,
-                want_char: 's',
-            },
-            // Testcase {
-            //     input: "the Cat sat",
-            //     count: 1,
-            //     want_char: 's',
-            // }, // Testcase {
-            //     input: "tHe cat sat",
-            //     count: 1,
-            //     want_char: 'c',
-            // },
-            // Testcase {
-            //     input: "a B ] long",
-            //     count: 1,
-            //     want_char: ']',
-            // },
-        ];
-
-        // let _ = env_logger::builder().is_test(true).try_init();
-        for (i, tc) in cases.iter().enumerate() {
-            let start = tc
-                .input
-                .chars()
-                .position(|c| c.is_ascii_uppercase())
-                .unwrap();
-            let text = tc.input.to_lowercase();
-            let len = text.len();
-            let mut b = Buffer::from(text.as_str());
-            b.left(len - start);
-            println!("start\n{}\n", b.show());
-            b.advance_word(tc.count);
-            println!("after\n{}\n", b.show());
-            assert_eq!(tc.want_char, b.current_char(), "Case {i} failed");
-        }
-    }
-
-    #[test]
-    fn test_advance_in_readme() {
-        let readme = std::fs::read_to_string("README.md").unwrap();
-        let mut b = Buffer::from(readme.as_str());
-        b.position(0, 0);
-        b.advance_word(2);
-        assert_eq!(']', b.current_char());
-    }
-
-    #[test]
-    fn test_advance_word_backward() {
-        struct Testcase {
-            input: &'static str,
-            count: isize,
-            want_char: char,
-        }
-
-        let cases = [
-            Testcase {
-                input: "the cat Sat",
-                count: -1,
-                want_char: 'c',
-            },
-            Testcase {
-                input: "the cat sAt",
-                count: -1,
-                want_char: 's',
-            },
-            Testcase {
-                input: "the cat Sat",
-                count: -2,
-                want_char: 't',
-            },
-            Testcase {
-                input: "the cat sAt",
-                count: -2,
-                want_char: 'c',
-            },
-            Testcase {
-                input: "the cat    sAt",
-                count: -2,
-                want_char: 'c',
-            },
-        ];
-
-        for (i, tc) in cases.iter().enumerate() {
-            let start = tc
-                .input
-                .chars()
-                .position(|c| c.is_ascii_uppercase())
-                .unwrap();
-            let text = tc.input.to_lowercase();
-            let len = text.len();
-            let mut b = Buffer::from(text.as_str());
-            b.left(len - start);
-            b.advance_word(tc.count);
-            assert_eq!(tc.want_char, b.current_char(), "Case {i} failed");
-        }
-    }
-}
+mod tests;

@@ -36,12 +36,10 @@ pub enum AppEvent {
     /// Quit the application.
     Quit,
     ModeChange(Mode),
-
-    Movement, // hjkl, w, b, ...
-    CursorMove(i32, i32),
-    AdvanceWord,
+    Movement,    // hjkl, w, b, ...
     Write(char), // Writes a character to the current cursor position.
     BufWrite,
+    ExCommandSubmit,
 }
 
 /// Terminal event handler.
@@ -86,6 +84,12 @@ impl EventHandler {
         // Ignore the result as the reciever cannot be dropped while this struct still has a
         // reference to it
         let _ = self.sender.send(Event::App(app_event));
+    }
+}
+
+impl Default for EventHandler {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
