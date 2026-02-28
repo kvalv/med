@@ -7,6 +7,8 @@ pub mod app;
 pub mod buffer;
 pub mod cmdbuf;
 pub mod event;
+mod span;
+mod textobject;
 pub mod ui;
 
 fn setup_logger() -> Result<(), fern::InitError> {

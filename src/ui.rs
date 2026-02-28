@@ -1,4 +1,3 @@
-use log::info;
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
