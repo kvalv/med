@@ -164,7 +164,7 @@ impl Buffer {
             (Current, Word) => {
                 for _ in 0..count {
                     // munch words until we're at
-                    let xx = self.advance_while(self.d, |c| is_word(c));
+                    let xx = self.advance_while(self.d, is_word);
                     self.d = self.advance_while(xx, is_blank);
 
                     if self.is_eol() {
@@ -257,10 +257,11 @@ impl Buffer {
             return;
         }
         for _ in 0..count {
-            if self.c == 0 {
+            if self.c == 0 || self.col == 0 {
                 return;
             }
             self.c -= 1;
+            self.col -= 1;
         }
     }
     fn grow(&mut self) {
@@ -384,6 +385,9 @@ impl Buffer {
     pub fn clear_target_col(&mut self) {
         self.target_col = None;
     }
+    pub fn update_target_col(&mut self) {
+        self.target_col = Some(self.col);
+    }
 
     pub fn j(&mut self, count: usize) {
         if self.target_col.is_none() {
@@ -464,13 +468,13 @@ impl Buffer {
         self.text().lines().count()
     }
 
-    fn prev_char(&self) -> Option<char> {
-        if self.c == 0 {
-            None
-        } else {
-            Some(self.buf[self.c - 1])
-        }
-    }
+    // fn prev_char(&self) -> Option<char> {
+    //     if self.c == 0 {
+    //         None
+    //     } else {
+    //         Some(self.buf[self.c - 1])
+    //     }
+    // }
 
     /// returns the char the cursor is currently located at
     fn current_char(&self) -> char {
@@ -530,9 +534,9 @@ impl Buffer {
 fn is_word(c: char) -> bool {
     c.is_alphanumeric() || "[]().,$_".chars().any(|h| h == c)
 }
-fn is_WORD(c: char) -> bool {
-    is_word(c) // TODO
-}
+// fn is_WORD(c: char) -> bool {
+//     is_word(c) // TODO
+// }
 fn is_blank(c: char) -> bool {
     c.is_whitespace() || c == '\n'
 }

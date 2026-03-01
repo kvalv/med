@@ -207,11 +207,12 @@ impl App {
                 KeyCode::Esc => self.events.send(AppEvent::ModeChange(Mode::Normal)),
                 KeyCode::Char(c) => self.events.send(AppEvent::Write(c)),
                 KeyCode::Enter => self.events.send(AppEvent::Write('\n')),
+                KeyCode::Backspace => self.buf.backspace(1),
                 _ => {}
             },
             Mode::Normal => {
                 match key_event.code {
-                    KeyCode::Char('i') => self.events.send(AppEvent::ModeChange(Mode::Insert)),
+                    // KeyCode::Char('i') => self.events.send(AppEvent::ModeChange(Mode::Insert)),
                     KeyCode::Char(':' | ';') => {
                         self.events.send(AppEvent::ModeChange(Mode::ExCommand))
                     }
@@ -233,10 +234,10 @@ impl App {
                         self.buf.right(1);
                         self.events.send(AppEvent::ModeChange(Mode::Insert));
                     }
-                    KeyCode::Char('a') => {
-                        self.buf.right(1);
-                        self.events.send(AppEvent::ModeChange(Mode::Insert));
-                    }
+                    // KeyCode::Char('a') => {
+                    //     self.buf.right(1);
+                    //     self.events.send(AppEvent::ModeChange(Mode::Insert));
+                    // }
                     KeyCode::Backspace => {
                         self.buf.h(1);
                     }
@@ -264,8 +265,8 @@ impl App {
                             .unwrap()
                         {
                             (MatchResult::Match, handler) => {
+                                info!("Command '{:?}' matched pattern '{}'", handler, cmd);
                                 handler.handle(self);
-                                info!("Command '{}' matched pattern", handler,);
                                 self.cmdbuf.drain();
                             }
                             (MatchResult::NoMatch, _) => {
@@ -319,7 +320,7 @@ type CommandHandlers = Vec<(Pattern, Box<dyn cmd::CmdHandler>)>;
 fn create_command_handlers() -> CommandHandlers {
     vec![
         (
-            Pattern::try_from("dw").expect("Failed to parse pattern"),
+            Pattern::try_from("d<motion>").expect("Failed to parse pattern"),
             Box::new(cmd::delete::Delete {}),
         ),
         (
@@ -327,5 +328,11 @@ fn create_command_handlers() -> CommandHandlers {
                 | Pattern::try_from("<count>e").expect("Failed to parse pattern"),
             Box::new(cmd::movement::Movement {}),
         ),
+        {
+            (
+                Pattern::try_from("i").unwrap(),
+                Box::new(cmd::insert::Insert {}),
+            )
+        },
     ]
 }

@@ -25,7 +25,9 @@ impl CmdHandler for Movement {
         match app.cmdbuf.pop() {
             Some('w') => app.buf.w(count),
             Some('b') => app.buf.b(count),
-            _ => {}
+            _ => return,
         }
+
+        app.buf.update_target_col();
     }
 }

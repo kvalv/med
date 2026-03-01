@@ -1,8 +1,9 @@
-use std::fmt::Display;
+use std::fmt::Debug;
 
 use crate::app::App;
 
 pub mod delete;
+pub mod insert;
 pub mod movement;
 pub mod pattern;
 pub mod write;
@@ -42,6 +43,13 @@ impl CmdBuf {
     }
     pub fn pop(&mut self) -> Option<char> {
         self.buf.pop()
+    }
+    pub fn pop_left(&mut self) -> Option<char> {
+        if self.buf.is_empty() {
+            None
+        } else {
+            Some(self.buf.remove(0))
+        }
     }
 
     // pops from the cmdbuf a count
@@ -84,7 +92,7 @@ impl Default for CmdBuf {
     }
 }
 
-pub trait CmdHandler: Display {
+pub trait CmdHandler: Debug {
     fn handle(&self, app: &mut App);
 }
 

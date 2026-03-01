@@ -1,5 +1,7 @@
 use std::{fmt::Display, ops::Index};
 
+use log::info;
+
 use crate::textobject::{Boundary, TextObject};
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
@@ -11,6 +13,7 @@ struct Matcher {
 /// Describes a comand pattern, e.g. `w[rite]` matches both `w` and `wr`, ...
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct Pattern {
+    verb: Option<char>,
     matchers: Vec<Matcher>,
 }
 
@@ -33,6 +36,19 @@ impl TryFrom<&str> for Pattern {
     type Error = String;
 
     fn try_from(mut value: &str) -> Result<Self, Self::Error> {
+        // special case
+        if value.contains("<motion>") {
+            let verb = value.chars().next().unwrap();
+            if value.chars().skip(1).collect::<String>() != "<motion>" {
+                return Err("does not end with <motion>".to_string());
+            }
+            info!("registering motion pattern '{}'", value);
+            return Ok(Self {
+                verb: Some(verb),
+                matchers: vec![],
+            });
+        }
+
         let mut criterias = vec![];
         let mut required = true;
         let accept_count = value.starts_with("<count>");
@@ -51,6 +67,7 @@ impl TryFrom<&str> for Pattern {
         }
 
         Ok(Self {
+            verb: None,
             matchers: vec![Matcher {
                 criterias,
                 accept_count,
@@ -72,6 +89,21 @@ pub trait PatternMatcher {
 
 impl Pattern {
     pub fn matches(&self, test: &str) -> MatchResult {
+        if let Some(c) = self.verb {
+            // then we'll instead match by <count>v<motion>
+            if !test.starts_with(c) {
+                info!("test verb: does not start with '{}'", c);
+                return MatchResult::NoMatch;
+            }
+            let rest: String = test.chars().skip(1).collect();
+            if rest.is_empty() {
+                return MatchResult::PartialMatch;
+            }
+            let got = Motion::matches(&rest);
+            info!("test verb: checking '{}' -> {:?}", rest, got);
+            return got;
+        }
+
         self.matchers
             .iter()
             .map(|matcher| Self::match_one(matcher, test))
@@ -148,8 +180,22 @@ pub struct Motion {
 }
 
 impl Motion {
-    pub fn from_cmd(input: &str) -> Option<Self> {
+    pub fn matches(input: &str) -> MatchResult {
+        let (m, _) = Self::from_cmd(input);
+        if m.is_some() {
+            return MatchResult::Match;
+        }
+
+        let (_, rest) = extract_count(input);
+        match rest.chars().next() {
+            Some('a' | 'i') => MatchResult::PartialMatch,
+            _ => MatchResult::NoMatch,
+        }
+    }
+
+    pub fn from_cmd(input: &str) -> (Option<Self>, usize) {
         let (count, rest) = extract_count(input);
+        let mut consumed = count.iter().len();
 
         let mut boundary = Boundary::Current;
         let mut object: Option<TextObject> = None;
@@ -160,8 +206,10 @@ impl Motion {
             Some('i') => boundary = Boundary::Inner,
             Some('w') => object = Some(TextObject::Word),
             Some('e') => object = Some(TextObject::End),
-            _ => return None,
+            _ => return (None, 0),
         }
+        consumed += 1;
+
         match it.next() {
             Some('w') => object = Some(TextObject::Word),
             Some('e') => object = Some(TextObject::End),
@@ -169,14 +217,18 @@ impl Motion {
         };
 
         if let Some(object) = object {
-            return Some(Self {
-                count,
-                boundary,
-                object,
-            });
+            consumed += 1;
+            return (
+                Some(Self {
+                    count,
+                    boundary,
+                    object,
+                }),
+                consumed,
+            );
         }
 
-        None
+        (None, 0)
     }
 }
 

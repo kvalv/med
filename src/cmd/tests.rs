@@ -32,7 +32,7 @@ fn test_motion() {
             boundary: Boundary::Inner,
             object: TextObject::Word,
         }),
-        Motion::from_cmd("iw")
+        Motion::from_cmd("iw").0
     );
     assert_eq!(
         Some(Motion {
@@ -40,7 +40,7 @@ fn test_motion() {
             boundary: Boundary::Around,
             object: TextObject::Word,
         }),
-        Motion::from_cmd("aw")
+        Motion::from_cmd("aw").0
     );
     assert_eq!(
         Some(Motion {
@@ -48,7 +48,7 @@ fn test_motion() {
             boundary: Boundary::Current,
             object: TextObject::Word,
         }),
-        Motion::from_cmd("2w")
+        Motion::from_cmd("2w").0
     );
     assert_eq!(
         Some(Motion {
@@ -56,7 +56,7 @@ fn test_motion() {
             boundary: Boundary::Current,
             object: TextObject::Word,
         }),
-        Motion::from_cmd("w")
+        Motion::from_cmd("w").0
     );
     assert_eq!(
         Some(Motion {
@@ -64,7 +64,7 @@ fn test_motion() {
             boundary: Boundary::Current,
             object: TextObject::Word,
         }),
-        Motion::from_cmd("100w")
+        Motion::from_cmd("100w").0
     );
     assert_eq!(
         Some(Motion {
@@ -72,7 +72,7 @@ fn test_motion() {
             boundary: Boundary::Current,
             object: TextObject::End,
         }),
-        Motion::from_cmd("23e")
+        Motion::from_cmd("23e").0
     );
 }
 
