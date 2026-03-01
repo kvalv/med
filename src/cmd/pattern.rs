@@ -1,7 +1,5 @@
 use std::ops::Index;
 
-use log::info;
-
 use crate::textobject::{Boundary, TextObject};
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]

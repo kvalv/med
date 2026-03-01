@@ -1,3 +1,5 @@
+use crate::textobject::Boundary::*;
+use crate::textobject::TextObject::*;
 use std::hint;
 
 use super::*;
@@ -483,4 +485,12 @@ fn test_d() {
     assert_eq!('[', b.current_char());
     b.d(1, Current, Word);
     assert_eq!("- navigation", b.text());
+}
+
+#[test]
+fn test_undo() {
+    let mut b = Buffer::from("the cat sat");
+    b.position(0, 5);
+    b.d(1, Inner, Word);
+    b.undo();
 }

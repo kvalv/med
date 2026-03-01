@@ -12,7 +12,11 @@ use std::char;
 
 use log::{info, warn};
 
-use crate::textobject::{Boundary, TextObject};
+use crate::{
+    buffer::history::{Change, ChangeHistory, Operation},
+    textobject::{Boundary, TextObject},
+};
+mod history;
 
 /// A Buffer represents a file that is being edited.
 /// Implemented as a gap buffer
@@ -28,6 +32,9 @@ pub struct Buffer {
     // when moving up or donw, the target column is what the desired column is to be at given
     // enough caracters, when doing jjjj or kkkk
     target_col: Option<usize>,
+
+    /// Undo and redo
+    changes: ChangeHistory,
 }
 
 // Display
@@ -60,6 +67,7 @@ impl Buffer {
             buf: vec!['x'; cap],
             c: 0,
             d: cap,
+            changes: ChangeHistory::default(),
         }
     }
     pub fn text(&self) -> String {
@@ -171,7 +179,7 @@ impl Buffer {
     }
 
     /// (current, next) -> bool. Returns the offset
-    fn advance_while2<T>(&self, start: usize, cond: T) -> usize
+    fn advance_while<T>(&self, start: usize, cond: T) -> usize
     where
         T: Fn(char, Option<char>) -> bool,
     {
@@ -188,20 +196,6 @@ impl Buffer {
             };
             if !cond(curr, next) {
                 return i;
-            }
-            i += 1;
-        }
-    }
-
-    fn advance_while<T: Fn(char) -> bool>(&self, start: usize, cond: T) -> usize {
-        let mut i = 0;
-        loop {
-            if start + i >= self.buf.len() {
-                return start + i;
-            }
-            let c = self.buf[start + i];
-            if !cond(c) {
-                return start + i;
             }
             i += 1;
         }
@@ -224,7 +218,7 @@ impl Buffer {
                     if start.is_whitespace() {
                         // handle that by just munching whitespace
                         let i = self
-                            .advance_while2(self.d, |_, next| next.map(is_word).unwrap_or(false));
+                            .advance_while(self.d, |_, next| next.map(is_word).unwrap_or(false));
                         self.d += i;
                         return;
                     }
@@ -232,10 +226,10 @@ impl Buffer {
                     // otherwise it's a word. We'll eat up all words,
                     // and then we'll eat up any trailing whitespace
 
-                    let i = self.advance_while2(self.d, |curr, _| is_word(curr));
+                    let i = self.advance_while(self.d, |curr, _| is_word(curr));
 
                     self.d += i;
-                    let j = self.advance_while2(self.d, |curr, _| curr == ' ');
+                    let j = self.advance_while(self.d, |curr, _| curr == ' ');
                     self.d += j;
                 }
             }
@@ -257,7 +251,7 @@ impl Buffer {
 
                 // forward
                 let j =
-                    self.advance_while2(self.d, |_, next| next.map(want_removed).unwrap_or(false));
+                    self.advance_while(self.d, |_, next| next.map(want_removed).unwrap_or(false));
                 // let end = self.advance_while(self.d, is_word);
                 self.d += j + 1;
             }
@@ -301,10 +295,6 @@ impl Buffer {
             }
         }
         warn!("Max iterations reached");
-    }
-
-    fn is_eol(&self) -> bool {
-        self.next_char().is_none() || self.next_char() == Some('\n')
     }
 
     /// Inserts to the left of the cursor.
@@ -418,6 +408,21 @@ impl Buffer {
                 }
             }
         }
+    }
+
+    pub fn undo(&mut self) {
+        if let Some(change) = self.changes.undo() {
+            self.apply(change, Operation::Undo);
+        }
+    }
+    pub fn redo(&mut self) {
+        if let Some(change) = self.changes.redo() {
+            self.apply(change, Operation::Redo);
+        }
+    }
+
+    fn apply(&mut self, change: Change, op: Operation) {
+        todo!()
     }
 
     /// vim-motion, go back by word
