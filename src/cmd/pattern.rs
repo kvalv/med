@@ -1,5 +1,7 @@
 use std::{fmt::Display, ops::Index};
 
+use crate::textobject::{Boundary, TextObject};
+
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 struct Matcher {
     criterias: Vec<Criteria>,
@@ -62,6 +64,10 @@ pub enum MatchResult {
     NoMatch,
     PartialMatch,
     Match,
+}
+
+pub trait PatternMatcher {
+    fn matches_pattern(&self, text: &str) -> MatchResult;
 }
 
 impl Pattern {
@@ -127,3 +133,54 @@ fn extract_count(input: &str) -> (Option<usize>, &str) {
         (count.parse::<usize>().ok(), input.index(count.len()..))
     }
 }
+
+// Pattern::Motion
+// d<motion>
+
+// or basically: d + motion
+// Pattern2::new().Require('d').Optional(Count).
+
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
+pub struct Motion {
+    pub count: Option<usize>,
+    pub boundary: Boundary,
+    pub object: TextObject,
+}
+
+impl Motion {
+    pub fn from_cmd(input: &str) -> Option<Self> {
+        let (count, rest) = extract_count(input);
+
+        let mut boundary = Boundary::Current;
+        let mut object: Option<TextObject> = None;
+
+        let mut it = rest.chars();
+        match it.next() {
+            Some('a') => boundary = Boundary::Around,
+            Some('i') => boundary = Boundary::Inner,
+            Some('w') => object = Some(TextObject::Word),
+            Some('e') => object = Some(TextObject::End),
+            _ => return None,
+        }
+        match it.next() {
+            Some('w') => object = Some(TextObject::Word),
+            Some('e') => object = Some(TextObject::End),
+            _ => {}
+        };
+
+        if let Some(object) = object {
+            return Some(Self {
+                count,
+                boundary,
+                object,
+            });
+        }
+
+        None
+    }
+}
+
+// impl PatternMatcher for Motion {
+//     fn matches_pattern(&self, text: &str) -> MatchResult {
+//     }
+// }

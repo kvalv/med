@@ -1,4 +1,7 @@
-use crate::cmd::pattern::{MatchResult, Pattern};
+use crate::{
+    cmd::pattern::{MatchResult, Motion, Pattern},
+    textobject::{Boundary, TextObject},
+};
 
 #[test]
 fn test_pattern_write() {
@@ -19,4 +22,62 @@ fn test_with_count() {
     assert_eq!(MatchResult::Match, pat.matches("32gg"));
     assert_eq!(MatchResult::NoMatch, pat.matches("32ggg"));
     assert_eq!(MatchResult::PartialMatch, pat.matches("32"));
+}
+
+#[test]
+fn test_motion() {
+    assert_eq!(
+        Some(Motion {
+            count: None,
+            boundary: Boundary::Inner,
+            object: TextObject::Word,
+        }),
+        Motion::from_cmd("iw")
+    );
+    assert_eq!(
+        Some(Motion {
+            count: None,
+            boundary: Boundary::Around,
+            object: TextObject::Word,
+        }),
+        Motion::from_cmd("aw")
+    );
+    assert_eq!(
+        Some(Motion {
+            count: Some(2),
+            boundary: Boundary::Current,
+            object: TextObject::Word,
+        }),
+        Motion::from_cmd("2w")
+    );
+    assert_eq!(
+        Some(Motion {
+            count: None,
+            boundary: Boundary::Current,
+            object: TextObject::Word,
+        }),
+        Motion::from_cmd("w")
+    );
+    assert_eq!(
+        Some(Motion {
+            count: Some(100),
+            boundary: Boundary::Current,
+            object: TextObject::Word,
+        }),
+        Motion::from_cmd("100w")
+    );
+    assert_eq!(
+        Some(Motion {
+            count: Some(23),
+            boundary: Boundary::Current,
+            object: TextObject::End,
+        }),
+        Motion::from_cmd("23e")
+    );
+}
+
+#[test]
+fn test_d_motion() {
+    let pat = Pattern::try_from("d<motion>").unwrap();
+    assert_eq!(MatchResult::Match, pat.matches("diw"));
 }

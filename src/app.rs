@@ -237,6 +237,9 @@ impl App {
                         self.buf.right(1);
                         self.events.send(AppEvent::ModeChange(Mode::Insert));
                     }
+                    KeyCode::Backspace => {
+                        self.buf.h(1);
+                    }
                     KeyCode::Char('o') => {
                         self.buf.eol();
                         self.buf.l(1);
