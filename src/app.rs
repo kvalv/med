@@ -1,4 +1,7 @@
-use crate::buffer::Buffer;
+use crate::{
+    buffer::Buffer,
+    cmd::pattern::{MatchResult, Pattern},
+};
 use std::path::Path;
 
 use crate::{
@@ -33,7 +36,7 @@ impl std::fmt::Display for Mode {
 }
 
 /// Application.
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct App {
     // Location of the cursor
     pub filename: String,
@@ -57,7 +60,7 @@ impl App {
     pub fn new(path: &Path) -> Self {
         let content: String = std::fs::read_to_string(path.to_str().unwrap()).unwrap();
 
-        let s = Self {
+        Self {
             filename: path.to_str().unwrap().to_string(),
             buf: Buffer::from(content.as_str()),
             msg: None,
@@ -66,9 +69,7 @@ impl App {
             cmdbuf: cmd::CmdBuf::new(),
             running: true,
             events: EventHandler::new(),
-        };
-
-        s
+        }
     }
 
     /// Run the application's main loop.
@@ -218,7 +219,7 @@ impl App {
                     KeyCode::Char('$') => {
                         self.buf.eol();
                     }
-                    KeyCode::Char(c @ ('w' | 'b' | 'e' | 'h' | 'j' | 'k' | 'l' | '0')) => {
+                    KeyCode::Char(c @ ('b' | 'e' | 'h' | 'j' | 'k' | 'l' | '0')) => {
                         self.cmdbuf.push(c);
                         self.events.send(AppEvent::Movement);
                     }
@@ -244,13 +245,39 @@ impl App {
                     }
 
                     // TODO: w, ...
-                    KeyCode::Char(c) if c.is_ascii_digit() => {
+                    KeyCode::Char(c) => {
                         // fill up the command buffer
                         self.cmdbuf.push(c);
+                        info!(
+                            "Pushed '{c}' to command buffer, now: {}",
+                            self.cmdbuf.text()
+                        );
+
+                        let cmd = self.cmdbuf.text();
+                        match create_command_handlers()
+                            .into_iter()
+                            .map(|(pat, handler)| (pat.matches(&cmd), handler))
+                            .max_by(|x, y| x.0.cmp(&y.0))
+                            .unwrap()
+                        {
+                            (MatchResult::Match, handler) => {
+                                handler.handle(self);
+                                info!("Command '{}' matched pattern", handler,);
+                                self.cmdbuf.drain();
+                            }
+                            (MatchResult::NoMatch, _) => {
+                                // Regardless of what gets typed next, it's not going to match
+                                // anything. In that case, we'll clear the cmdbuf
+                                info!("Nothing will match '{}' -> clearing cmdbuf", cmd);
+                                self.cmdbuf.drain();
+                            }
+                            (MatchResult::PartialMatch, _) => {
+                                // Still hope for matching -> keep
+                            }
+                        }
                     }
                     _ => {}
                 }
-                // } else if self.mode == Mode::Insert {
             }
             Mode::ExCommand => match key_event.code {
                 KeyCode::Enter => {
@@ -282,4 +309,20 @@ impl App {
     pub fn quit(&mut self) {
         self.running = false;
     }
+}
+
+type CommandHandlers = Vec<(Pattern, Box<dyn cmd::CmdHandler>)>;
+
+fn create_command_handlers() -> CommandHandlers {
+    vec![
+        (
+            Pattern::try_from("dw").expect("Failed to parse pattern"),
+            Box::new(cmd::delete::Delete {}),
+        ),
+        (
+            Pattern::try_from("<count>w").expect("Failed to parse pattern")
+                | Pattern::try_from("<count>e").expect("Failed to parse pattern"),
+            Box::new(cmd::movement::Movement {}),
+        ),
+    ]
 }
