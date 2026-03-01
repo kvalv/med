@@ -479,4 +479,10 @@ fn test_d() {
     b.position(0, 5);
     b.d(3, Current, Word);
     assert_eq!("the ", b.text());
+
+    b = Buffer::from("- [x] navigation");
+    b.position(0, 2);
+    assert_eq!('[', b.current_char());
+    b.d(1, Current, Word);
+    assert_eq!("- navigation", b.text());
 }

@@ -528,7 +528,7 @@ impl Buffer {
 // sequence of letters, digits, underscores, or a sequence of other
 // non-blank characters.
 fn is_word(c: char) -> bool {
-    c.is_alphanumeric()
+    c.is_alphanumeric() || "[]().,$_".chars().any(|h| h == c)
 }
 fn is_WORD(c: char) -> bool {
     is_word(c) // TODO
