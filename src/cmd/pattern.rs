@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Index};
+use std::ops::Index;
 
 use log::info;
 
@@ -17,13 +17,6 @@ pub struct Pattern {
     matchers: Vec<Matcher>,
 }
 
-impl Display for Pattern {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "pattern").unwrap();
-        Ok(())
-    }
-}
-
 /// A single letter in the command. Either encapsulated in a `[...]` or not.
 /// If it is, then it's optional. Otherwise, it's required.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
@@ -32,21 +25,17 @@ struct Criteria {
     required: bool,
 }
 
-impl TryFrom<&str> for Pattern {
-    type Error = String;
-
-    fn try_from(mut value: &str) -> Result<Self, Self::Error> {
-        // special case
+impl From<&str> for Pattern {
+    fn from(mut value: &str) -> Self {
         if value.contains("<motion>") {
             let verb = value.chars().next().unwrap();
             if value.chars().skip(1).collect::<String>() != "<motion>" {
-                return Err("does not end with <motion>".to_string());
+                panic!("does not end with <motion>");
             }
-            info!("registering motion pattern '{}'", value);
-            return Ok(Self {
+            return Self {
                 verb: Some(verb),
                 matchers: vec![],
-            });
+            };
         }
 
         let mut criterias = vec![];
@@ -66,13 +55,13 @@ impl TryFrom<&str> for Pattern {
             }
         }
 
-        Ok(Self {
+        Self {
             verb: None,
             matchers: vec![Matcher {
                 criterias,
                 accept_count,
             }],
-        })
+        }
     }
 }
 
@@ -92,7 +81,6 @@ impl Pattern {
         if let Some(c) = self.verb {
             // then we'll instead match by <count>v<motion>
             if !test.starts_with(c) {
-                info!("test verb: does not start with '{}'", c);
                 return MatchResult::NoMatch;
             }
             let rest: String = test.chars().skip(1).collect();
@@ -100,7 +88,6 @@ impl Pattern {
                 return MatchResult::PartialMatch;
             }
             let got = Motion::matches(&rest);
-            info!("test verb: checking '{}' -> {:?}", rest, got);
             return got;
         }
 
@@ -186,7 +173,12 @@ impl Motion {
             return MatchResult::Match;
         }
 
-        let (_, rest) = extract_count(input);
+        let (count, rest) = extract_count(input);
+
+        if count.is_some() && count.unwrap() > 0 {
+            return MatchResult::PartialMatch;
+        }
+
         match rest.chars().next() {
             Some('a' | 'i') => MatchResult::PartialMatch,
             _ => MatchResult::NoMatch,

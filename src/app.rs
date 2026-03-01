@@ -1,6 +1,9 @@
 use crate::{
     buffer::Buffer,
-    cmd::pattern::{MatchResult, Pattern},
+    cmd::{
+        CommandHandler,
+        pattern::{MatchResult, Pattern},
+    },
 };
 use std::path::Path;
 
@@ -229,17 +232,20 @@ impl App {
                         self.buf.x(count);
                         info!("{count}x backspace");
                     }
-                    KeyCode::Char('A') => {
-                        self.buf.eol();
-                        self.buf.right(1);
-                        self.events.send(AppEvent::ModeChange(Mode::Insert));
-                    }
+                    // KeyCode::Char('A') => {
+                    //     self.buf.eol();
+                    //     self.buf.right(1);
+                    //     self.events.send(AppEvent::ModeChange(Mode::Insert));
+                    // }
                     // KeyCode::Char('a') => {
                     //     self.buf.right(1);
                     //     self.events.send(AppEvent::ModeChange(Mode::Insert));
                     // }
                     KeyCode::Backspace => {
                         self.buf.h(1);
+                    }
+                    KeyCode::Esc => {
+                        self.cmdbuf.drain();
                     }
                     KeyCode::Char('o') => {
                         self.buf.eol();
@@ -265,8 +271,8 @@ impl App {
                             .unwrap()
                         {
                             (MatchResult::Match, handler) => {
-                                info!("Command '{:?}' matched pattern '{}'", handler, cmd);
-                                handler.handle(self);
+                                info!("Command matched pattern '{}'", cmd);
+                                let _ = handler(self);
                                 self.cmdbuf.drain();
                             }
                             (MatchResult::NoMatch, _) => {
@@ -315,24 +321,17 @@ impl App {
     }
 }
 
-type CommandHandlers = Vec<(Pattern, Box<dyn cmd::CmdHandler>)>;
+type CommandHandlers = Vec<(Pattern, CommandHandler)>;
 
 fn create_command_handlers() -> CommandHandlers {
     vec![
+        (Pattern::from("i"), cmd::insert::insert),
+        (Pattern::from("a") | Pattern::from("A"), cmd::append::append),
+        (Pattern::from("d<motion>"), cmd::delete::delete),
+        (Pattern::from("c<motion>"), cmd::change::change),
         (
-            Pattern::try_from("d<motion>").expect("Failed to parse pattern"),
-            Box::new(cmd::delete::Delete {}),
+            Pattern::from("<count>w") | Pattern::from("<count>e"),
+            cmd::movement::movement,
         ),
-        (
-            Pattern::try_from("<count>w").expect("Failed to parse pattern")
-                | Pattern::try_from("<count>e").expect("Failed to parse pattern"),
-            Box::new(cmd::movement::Movement {}),
-        ),
-        {
-            (
-                Pattern::try_from("i").unwrap(),
-                Box::new(cmd::insert::Insert {}),
-            )
-        },
     ]
 }

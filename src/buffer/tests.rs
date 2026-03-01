@@ -1,3 +1,5 @@
+use std::hint;
+
 use super::*;
 
 // #[cfg(test)]
@@ -429,25 +431,46 @@ fn test_k() {
 fn test_d() {
     use Boundary::*;
     use TextObject::*;
+    let mut b: Buffer;
 
-    let mut b = Buffer::from("the cat sat");
-    b.position(0, 5);
-    assert_eq!('a', b.current_char());
-
-    b.d(1, Inner, Word);
-    assert_eq!("the sat", b.text());
+    b = Buffer::from("hi\nworld");
+    b.position(0, 0);
+    b.d(1, Current, Word);
+    assert_eq!("\nworld", b.text());
+    // return;
 
     b = Buffer::from("the cat sat");
+    b.position(0, 5);
+    assert_eq!('a', b.current_char());
+    b.d(1, Inner, Word);
+    assert_eq!("the  sat", b.text());
+
+    b = Buffer::from("the cat sat");
+    b.position(0, 4);
+    b.d(1, Inner, Word);
+    assert_eq!("the  sat", b.text());
+
+    b = Buffer::from("the cat sat");
+    b.position(0, 3); // kills the whitespace
+    b.d(1, Inner, Word);
+    assert_eq!("thecat sat", b.text());
+
+    b = Buffer::from("the cat    sat");
     b.position(0, 5);
     b.d(1, Current, Word);
     assert_eq!("the csat", b.text());
     assert_eq!(b.row, 0);
     assert_eq!(b.col, 5);
 
-    b = Buffer::from("the cat sat");
+    b = Buffer::from("hi");
+    b.position(0, 0);
+    b.d(1, Current, Word);
+    assert_eq!("", b.text());
+
+    b = Buffer::from("the cdog");
     b.position(0, 5);
     b.d(2, Current, Word);
-    assert_eq!("the c", b.text());
+    assert_eq!("the ", b.text());
 
     // when delete and reach end of word, also delete the current letter??? wtf?
     b = Buffer::from("the cat sat");

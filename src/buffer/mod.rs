@@ -143,6 +143,56 @@ impl Buffer {
         }
     }
 
+    fn go_back_while<T>(&self, start: usize, cond: T) -> usize
+    where
+        T: Fn(Option<char>, char) -> bool,
+    {
+        let mut i = 0;
+        loop {
+            if start - i == 0 {
+                return i;
+            }
+            let curr = self.buf[start - i];
+            let prev = if start - i == 0 {
+                None
+            } else {
+                Some(self.buf[start - i - 1])
+            };
+            let got = cond(prev, curr);
+            // println!(
+            //     "go back while: prev={:?} curr={:?} continue={}",
+            //     prev, curr, got
+            // );
+            if !got {
+                return i;
+            }
+            i += 1;
+        }
+    }
+
+    /// (current, next) -> bool. Returns the offset
+    fn advance_while2<T>(&self, start: usize, cond: T) -> usize
+    where
+        T: Fn(char, Option<char>) -> bool,
+    {
+        let mut i = 0;
+        loop {
+            if start + i >= self.buf.len() {
+                return i;
+            }
+            let curr = self.buf[start + i];
+            let next = if start + i + 1 >= self.buf.len() {
+                None
+            } else {
+                Some(self.buf[start + i + 1])
+            };
+            if !cond(curr, next) {
+                return i;
+            }
+            i += 1;
+        }
+    }
+
     fn advance_while<T: Fn(char) -> bool>(&self, start: usize, cond: T) -> usize {
         let mut i = 0;
         loop {
@@ -163,32 +213,53 @@ impl Buffer {
         match (boundary, obj) {
             (Current, Word) => {
                 for _ in 0..count {
-                    // munch words until we're at
-                    let xx = self.advance_while(self.d, is_word);
-                    self.d = self.advance_while(xx, is_blank);
-
-                    if self.is_eol() {
-                        // If we are at the end of the line, we want to
-                        // move the cursor left a bit
-                        self.left(1);
+                    if self.d >= self.buf.len() {
+                        if self.c > 0 {
+                            self.c -= 1;
+                        }
+                        return;
                     }
+                    let start = self.current_char();
+
+                    if start.is_whitespace() {
+                        // handle that by just munching whitespace
+                        let i = self
+                            .advance_while2(self.d, |_, next| next.map(is_word).unwrap_or(false));
+                        self.d += i;
+                        return;
+                    }
+
+                    // otherwise it's a word. We'll eat up all words,
+                    // and then we'll eat up any trailing whitespace
+
+                    let i = self.advance_while2(self.d, |curr, _| is_word(curr));
+
+                    self.d += i;
+                    let j = self.advance_while2(self.d, |curr, _| curr == ' ');
+                    self.d += j;
                 }
             }
             (Inner, Word) => {
-                for i in 0..100 {
-                    if !is_word(self.buf[self.c - i]) {
-                        // ... we are done.
-                        self.c -= i;
-                        break;
-                    }
-                }
+                // if we do a 'diw' on whitespace --> the whitespace should be
+                // killed. Otherwise, the word should be killed
 
-                for i in 0..100 {
-                    if !is_word(self.buf[self.d + i]) {
-                        self.d += i;
-                        break;
-                    }
-                }
+                // a predicate deciding what we want to remove
+                let want_removed = if self.current_char().is_whitespace() {
+                    is_blank
+                } else {
+                    is_word
+                };
+
+                let i =
+                    self.go_back_while(self.c, |prev, _| prev.map(want_removed).unwrap_or(false));
+                self.c -= i;
+                self.col -= i;
+
+                // forward
+                let j =
+                    self.advance_while2(self.d, |_, next| next.map(want_removed).unwrap_or(false));
+                // let end = self.advance_while(self.d, is_word);
+                self.d += j + 1;
             }
             (Around, Word) => {}
 

@@ -1,4 +1,4 @@
 - [x] save file
 - [x] navigation (hjkl, i,a, 0, $, w, b)
-- [ ] dw, d2w
+- [ ] diw, d$, dd
 - [ ] diw, d$, dd

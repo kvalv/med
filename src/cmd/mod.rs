@@ -1,7 +1,7 @@
-use std::fmt::Debug;
-
 use crate::app::App;
 
+pub mod append;
+pub mod change;
 pub mod delete;
 pub mod insert;
 pub mod movement;
@@ -92,9 +92,7 @@ impl Default for CmdBuf {
     }
 }
 
-pub trait CmdHandler: Debug {
-    fn handle(&self, app: &mut App);
-}
+pub type CommandHandler = fn(app: &mut App) -> Result<(), String>;
 
 impl std::fmt::Debug for CmdBuf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

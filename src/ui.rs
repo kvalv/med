@@ -80,29 +80,29 @@ impl Widget for &App {
         // Content
         paragraph.render(inner_area, buf);
 
-        // Command palette
-        // format!("{}", &self.mode).italic().render(footer_area, buf);
-        render_footer(self).italic().render(footer_area, buf);
+        render_footer(self, footer_area, buf);
     }
 }
 
-fn render_footer(app: &App) -> Line<'_> {
-    if let Some(msg) = &app.msg {
-        return Line::from(msg.clone()).fg(Color::Green);
-    }
+fn render_footer<'a>(app: &'a App, area: Rect, buf: &'a mut Buffer) {
+    let [lhs, mid, rhs] = Layout::horizontal([
+        Constraint::Percentage(30),
+        Constraint::Percentage(40),
+        Constraint::Percentage(30),
+    ])
+    .areas(area);
 
-    match app.mode {
-        Mode::ExCommand => Line::from(vec![
-            format!(":{}", app.cmdbuf).into(),
-            Span::from(" ").bg(Color::White),
-        ]),
-        _ => format!(
-            "{} -- row {} col {} -- `{}`",
-            app.mode,
-            app.buf.row,
-            app.buf.col,
-            Span::from(app.buf.current_line()).fg(Color::Red),
-        )
-        .into(),
-    }
+    Line::from(vec![
+        Span::from(app.mode.to_string()).fg(Color::Green),
+        Span::from(format!(" ({}, {})", app.buf.row, app.buf.col)).fg(Color::DarkGray),
+    ])
+    .render(lhs, buf);
+
+    Line::from(app.filename.as_str())
+        .centered()
+        .render(mid, buf);
+
+    Line::from(format!("{:<10}", app.cmdbuf.text()).as_str())
+        .right_aligned()
+        .render(rhs, buf);
 }

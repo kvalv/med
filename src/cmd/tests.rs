@@ -5,7 +5,7 @@ use crate::{
 
 #[test]
 fn test_pattern_write() {
-    let pat = Pattern::try_from("w[rite]").expect("Failed to parse pattern");
+    let pat = Pattern::from("w[rite]");
     assert_eq!(MatchResult::Match, pat.matches("w"));
     assert_eq!(MatchResult::Match, pat.matches("wr"));
     assert_eq!(MatchResult::Match, pat.matches("wri"));
@@ -16,7 +16,7 @@ fn test_pattern_write() {
 
 #[test]
 fn test_with_count() {
-    let pat = Pattern::try_from("<count>g[g]").unwrap();
+    let pat = Pattern::from("<count>g[g]");
     assert_eq!(MatchResult::Match, pat.matches("g"));
     assert_eq!(MatchResult::Match, pat.matches("32g"));
     assert_eq!(MatchResult::Match, pat.matches("32gg"));
@@ -26,6 +26,7 @@ fn test_with_count() {
 
 #[test]
 fn test_motion() {
+    assert_eq!(Motion::matches("2"), MatchResult::PartialMatch,);
     assert_eq!(
         Some(Motion {
             count: None,
@@ -78,6 +79,6 @@ fn test_motion() {
 
 #[test]
 fn test_d_motion() {
-    let pat = Pattern::try_from("d<motion>").unwrap();
+    let pat = Pattern::from("d<motion>");
     assert_eq!(MatchResult::Match, pat.matches("diw"));
 }
