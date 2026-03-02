@@ -1,6 +1,7 @@
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub enum TextObject {
     #[default]
+    Paren, // ()
     Block,
     Word,
     End, // e

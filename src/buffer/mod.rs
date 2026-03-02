@@ -14,13 +14,15 @@ use log::{info, warn};
 
 use crate::{
     buffer::history::{Change, ChangeHistory, Operation},
+    cmd::pattern::Motion,
+    span::{Location, Span},
     textobject::{Boundary, TextObject},
 };
 mod history;
 
 /// A Buffer represents a file that is being edited.
 /// Implemented as a gap buffer
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Buffer {
     buf: Vec<char>,
     c: usize,
@@ -204,6 +206,7 @@ impl Buffer {
     pub fn d(&mut self, count: usize, boundary: Boundary, obj: TextObject) {
         use Boundary::*;
         use TextObject::*;
+
         match (boundary, obj) {
             (Current, Word) => {
                 for _ in 0..count {
@@ -421,7 +424,7 @@ impl Buffer {
         }
     }
 
-    fn apply(&mut self, change: Change, op: Operation) {
+    fn apply(&mut self, _change: Change, _op: Operation) {
         todo!()
     }
 
@@ -603,6 +606,82 @@ impl Buffer {
         }
         warn!("hit iteration limit in eol - probably a bug");
     }
+
+    fn num_columns(&self, row: usize) -> usize {
+        match self.text().lines().nth(row) {
+            None => 0,
+            Some(line) => line.char_indices().count(),
+        }
+    }
+
+    pub fn span(&self, motion: Motion) -> Span {
+        // basically need to know: how much to advance from current cursor, and how much
+        // to go back. Two numbers. That gives me the span that we'll put in. But also
+        // depends on the verb? Or probably not...
+        // Property: we always go back and forwards, can start with c and d and proceed
+
+        let wc = WordClass::from(self.current_char());
+
+        // backwards pass
+
+        let i = self.go_back_while(self.c, |prev, _| prev.map(|c| wc.eq(c)).unwrap_or(false));
+
+        // forward
+        let j = self.advance_while(self.d, |_, next| next.map(|c| wc.eq(c)).unwrap_or(false));
+
+        println!("go back by {} and forward by {}", i, j);
+
+        // tells me how much to advance and go back. Not sure how
+        // to translate this to a
+
+        let mut span = Span {
+            start: Location {
+                row: self.row,
+                col: self.col,
+            },
+            end: Location {
+                row: self.row,
+                col: self.col + 1,
+            },
+        };
+
+        for k in 0..i {
+            if self.buf[self.c - k] == '\n' {
+                span.start.row -= 1;
+                span.start.col = self.num_columns(span.start.row);
+            } else {
+                span.start.col -= 1;
+                println!("subtracting one in span.start.col");
+            }
+        }
+        for k in 0..j {
+            if self.buf[self.d + k] == '\n' {
+                span.end.row += 1;
+                span.end.col = 0;
+            } else {
+                span.end.col += 1;
+            }
+        }
+        println!(
+            "resulting span is ({}, {}) to ({}, {})",
+            span.start.row, span.start.col, span.end.row, span.end.col
+        );
+        span
+    }
+
+    pub fn text_for_span(&self, span: Span) -> String {
+        // TODO: not this
+        let mut cloned = self.clone();
+        let mut chars = vec![];
+        cloned.position(span.start.row, span.start.col);
+        loop {
+            if cloned.row == span.end.row && cloned.col == span.end.col {
+                return chars.iter().collect();
+            }
+            chars.push(cloned.current_char());
+            cloned.right(1);
+        }
+    }
 }
 
 // sequence of letters, digits, underscores, or a sequence of other
@@ -626,6 +705,38 @@ impl Iterator for Buffer {
             Some(c)
         } else {
             None
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Clone)]
+enum WordClass {
+    AlphaNumeric, // digit, alphabet, underscore
+    Whitespace,   // space or tab
+    Symbols,      // anything except the others here
+    Newline,
+}
+
+impl WordClass {
+    /// Returns true if the rhs char is the same wordclass as the current
+    fn eq<T>(&self, rhs: T) -> bool
+    where
+        T: Into<WordClass>,
+    {
+        rhs.into() == *self
+    }
+}
+
+impl From<char> for WordClass {
+    fn from(value: char) -> Self {
+        if value.is_alphanumeric() {
+            Self::AlphaNumeric
+        } else if value == '\n' {
+            Self::Newline
+        } else if value == ' ' || value == '\t' {
+            Self::Whitespace
+        } else {
+            Self::Symbols
         }
     }
 }

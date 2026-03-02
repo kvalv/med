@@ -14,7 +14,7 @@ pub struct Change {
     // text: String,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ChangeHistory {
     // single changes only for now,
     changes: Vec<Change>,
@@ -37,5 +37,3 @@ impl ChangeHistory {
         todo!();
     }
 }
-
-pub fn apply(buf: &mut Buffer) {}

@@ -13,6 +13,7 @@ impl From<(usize, usize)> for Location {
     }
 }
 
+/// End last column not included
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Span {
     pub start: Location,

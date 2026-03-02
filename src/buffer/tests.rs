@@ -1,6 +1,5 @@
 use crate::textobject::Boundary::*;
 use crate::textobject::TextObject::*;
-use std::hint;
 
 use super::*;
 
@@ -493,4 +492,108 @@ fn test_undo() {
     b.position(0, 5);
     b.d(1, Inner, Word);
     b.undo();
+}
+
+#[test]
+fn test_span() {
+    use crate::cmd::pattern::Motion;
+
+    struct Case {
+        input: &'static str,
+        pos: (usize, usize),
+        motion: Motion,
+        want: &'static str,
+    }
+
+    let cases: Vec<Case> = vec![
+        Case {
+            input: "a.!b",
+            pos: (0, 1),
+            motion: Motion {
+                count: 2,
+                boundary: Inner,
+                object: Word,
+            },
+            want: ".!b",
+        },
+        Case {
+            input: "a.!b",
+            pos: (0, 1),
+            motion: Motion {
+                count: None,
+                boundary: Inner,
+                object: Word,
+            },
+            want: ".!",
+        },
+        Case {
+            input: "a..b",
+            pos: (0, 1),
+            motion: Motion {
+                count: None,
+                boundary: Inner,
+                object: Word,
+            },
+            want: "..",
+        },
+        Case {
+            input: "a.b",
+            pos: (0, 0),
+            motion: Motion {
+                count: None,
+                boundary: Inner,
+                object: Word,
+            },
+            want: "a",
+        },
+        Case {
+            input: "a.b",
+            pos: (0, 1),
+            motion: Motion {
+                count: None,
+                boundary: Inner,
+                object: Word,
+            },
+            want: ".",
+        },
+        Case {
+            input: "the cat sat",
+            pos: (0, 5),
+            motion: Motion {
+                count: None,
+                boundary: Inner,
+                object: Word,
+            },
+            want: "cat",
+        },
+    ];
+
+    for (i, tc) in cases.iter().enumerate() {
+        let mut b = Buffer::from(tc.input);
+        b.position(tc.pos.0, tc.pos.1);
+        let span = b.span(tc.motion.clone());
+        let got = b.text_for_span(span);
+        assert_eq!(
+            tc.want, got,
+            "Case {i} failed: input={:?} pos={:?} motion={:?}",
+            tc.input, tc.pos, tc.motion
+        );
+    }
+}
+
+#[test]
+fn test_text_for_span() {
+    let mut b = Buffer::from("the cat sat");
+    b.position(0, 5);
+
+    assert_eq!("cat", b.text_for_span(Span::from((0, 4, 0, 7))));
+
+    let span = b.span(Motion {
+        count: None,
+        boundary: Inner,
+        object: Word,
+    });
+    let text = b.text_for_span(span);
+
+    assert_eq!("cat", text);
 }
