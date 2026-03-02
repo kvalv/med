@@ -153,12 +153,18 @@ impl Buffer {
         }
     }
 
+    /// Returns true if the cursor is at the end of the file. Current_char
+    /// points to the last char.
+    pub fn at_eof(&self) -> bool {
+        self.d >= self.buf.len() - 1
+    }
+
     fn go_back_while<T>(&self, start: usize, cond: T) -> usize
     where
         T: Fn(Option<char>, char) -> bool,
     {
-        let mut i = 0;
-        loop {
+        const LIMIT: usize = 10000;
+        for i in 0..LIMIT {
             if start - i == 0 {
                 return i;
             }
@@ -176,8 +182,8 @@ impl Buffer {
             if !got {
                 return i;
             }
-            i += 1;
         }
+        panic!("hit iteration limit in go_back_while - probably a bug");
     }
 
     /// (current, next) -> bool. Returns the offset
@@ -185,8 +191,8 @@ impl Buffer {
     where
         T: Fn(char, Option<char>) -> bool,
     {
-        let mut i = 0;
-        loop {
+        const LIMIT: usize = 10000;
+        for i in 0..LIMIT {
             if start + i >= self.buf.len() {
                 return i;
             }
@@ -199,8 +205,8 @@ impl Buffer {
             if !cond(curr, next) {
                 return i;
             }
-            i += 1;
         }
+        panic!("hit iteration limit in advance_while - probably a bug");
     }
 
     pub fn d(&mut self, count: usize, boundary: Boundary, obj: TextObject) {
@@ -615,19 +621,74 @@ impl Buffer {
     }
 
     pub fn span(&self, motion: Motion) -> Span {
-        // basically need to know: how much to advance from current cursor, and how much
-        // to go back. Two numbers. That gives me the span that we'll put in. But also
-        // depends on the verb? Or probably not...
-        // Property: we always go back and forwards, can start with c and d and proceed
-
         let wc = WordClass::from(self.current_char());
 
         // backwards pass
-
         let i = self.go_back_while(self.c, |prev, _| prev.map(|c| wc.eq(c)).unwrap_or(false));
+        println!("would go back by {} chars", i);
 
         // forward
-        let j = self.advance_while(self.d, |_, next| next.map(|c| wc.eq(c)).unwrap_or(false));
+        let mut j = 0;
+        let mut wc_forward = wc;
+        for k in 0..motion.count.unwrap_or(1) {
+            println!(
+                "k={} Start char is '{}' and wc is {:?} and index is {}",
+                k,
+                self.buf[self.d + j],
+                wc_forward,
+                self.d + j
+            );
+            let tmp = self.advance_while(self.d + j, |curr, next| {
+                println!("curr='{}' next='{:?}'", curr, next);
+                next.map(|c| wc_forward.eq(c)).unwrap_or(false)
+            });
+            j += tmp;
+
+            if k == motion.count.unwrap_or(1) - 1 {
+                break;
+            }
+
+            // if already at end -> nothing to do
+            if self.d + j + 1 >= self.buf.len() {
+                println!("At end nothing to do");
+                break;
+            }
+
+            j += 1; // 
+
+            println!(
+                "buf.len={} d={} j={} tmp={} d will look at '{}'",
+                self.buf.len(),
+                self.d,
+                j,
+                tmp,
+                if self.d + j >= self.buf.len() {
+                    'X'
+                } else {
+                    self.buf[self.d + j]
+                }
+            );
+
+            // if k < motion.count.unwrap_or(1) - 1 {
+            //     j += 1; // move forward one more to get to the next wordclass
+            // }
+            // wtf???
+
+            // // if more -> advance cursor one more step??
+            // // and now we want
+            wc_forward = if self.d + j >= self.buf.len() {
+                WordClass::Whitespace
+            } else {
+                WordClass::from(self.buf[self.d + j])
+            };
+            println!("self.d+j = {}", self.d + j);
+            // println!(
+            //     "Moved forward by {}, char is '{}' and wc_forward is {:?}",
+            //     tmp,
+            //     self.buf[self.d + j],
+            //     wc_forward
+            // );
+        }
 
         println!("go back by {} and forward by {}", i, j);
 
@@ -670,17 +731,24 @@ impl Buffer {
     }
 
     pub fn text_for_span(&self, span: Span) -> String {
+        // panic!("stop here for now");
         // TODO: not this
         let mut cloned = self.clone();
         let mut chars = vec![];
         cloned.position(span.start.row, span.start.col);
-        loop {
+        const LIMIT: usize = 10000;
+        for _ in 0..LIMIT {
             if cloned.row == span.end.row && cloned.col == span.end.col {
                 return chars.iter().collect();
             }
             chars.push(cloned.current_char());
+            if cloned.at_eof() {
+                return chars.iter().collect();
+            }
+            println!("pushed char '{}' for span text", chars.last().unwrap());
             cloned.right(1);
         }
+        panic!("hit iteration limit in text_for_span - probably a bug");
     }
 }
 
@@ -709,7 +777,7 @@ impl Iterator for Buffer {
     }
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 enum WordClass {
     AlphaNumeric, // digit, alphabet, underscore
     Whitespace,   // space or tab

@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, span::Span};
+use crate::span::Span;
 
 pub enum Operation {
     Undo,

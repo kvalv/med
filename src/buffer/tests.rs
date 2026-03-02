@@ -504,13 +504,122 @@ fn test_span() {
         motion: Motion,
         want: &'static str,
     }
-
     let cases: Vec<Case> = vec![
+        // Case {
+        //     input: "the cat sat",
+        //     pos: (0, 0),
+        //     motion: Motion {
+        //         count: Some(1),
+        //         boundary: Current,
+        //         object: Word,
+        //     },
+        //     want: "the c",
+        // },
+        Case {
+            input: "the cat     sat",
+            pos: (0, 5),
+            motion: Motion {
+                count: Some(2),
+                boundary: Inner,
+                object: Word,
+            },
+            want: "cat     ",
+        },
+        Case {
+            input: "the cat sat",
+            pos: (0, 5),
+            motion: Motion {
+                count: Some(4),
+                boundary: Inner,
+                object: Word,
+            },
+            want: "cat sat",
+        },
+        Case {
+            input: "the cat sat",
+            pos: (0, 5),
+            motion: Motion {
+                count: Some(3),
+                boundary: Inner,
+                object: Word,
+            },
+            want: "cat sat",
+        },
+        Case {
+            input: "the cat sat",
+            pos: (0, 5),
+            motion: Motion {
+                count: Some(2),
+                boundary: Inner,
+                object: Word,
+            },
+            want: "cat ",
+        },
+        Case {
+            input: "abba",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(3),
+                boundary: Inner,
+                object: Word,
+            },
+            want: "abba",
+        },
+        Case {
+            input: "abba",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(2),
+                boundary: Inner,
+                object: Word,
+            },
+            want: "abba",
+        },
+        Case {
+            input: "abba",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(1),
+                boundary: Inner,
+                object: Word,
+            },
+            want: "abba",
+        },
+        Case {
+            input: "a.!b!",
+            pos: (0, 2),
+            motion: Motion {
+                count: Some(1),
+                boundary: Inner,
+                object: Word,
+            },
+            want: ".!",
+        },
+        Case {
+            input: "a.!b!",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(2),
+                boundary: Inner,
+                object: Word,
+            },
+            want: ".!b",
+        },
+        Case {
+            input: "a.!b!",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(2),
+                boundary: Inner,
+                object: Word,
+            },
+            want: ".!b",
+        },
         Case {
             input: "a.!b",
             pos: (0, 1),
             motion: Motion {
-                count: 2,
+                count: Some(2),
                 boundary: Inner,
                 object: Word,
             },
