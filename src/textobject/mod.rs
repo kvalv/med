@@ -1,15 +1,15 @@
-#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash, Copy)]
 pub enum TextObject {
     #[default]
     Paren, // ()
-    Block,
+    CurlyBracket, // {}
     Word,
     End, // e
          // Paren, // ()
          // Brack, // <>
 }
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash, Copy)]
 pub enum Boundary {
     #[default]
     Current, // From current location. I would like to use 'None', but that would be bad.

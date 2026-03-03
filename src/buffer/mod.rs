@@ -624,7 +624,7 @@ impl Buffer {
         let count = motion.count.unwrap_or(1);
 
         let last_iteration = |k: usize| k == count - 1;
-        let at_boundary = |idx| idx == 0 || (idx >= self.buf.len() - 1);
+        let at_boundary = |idx: usize| idx == 0 || (idx >= self.buf.len() - 1);
         let char_at = |idx: usize| {
             if idx >= self.buf.len() {
                 '\0'
@@ -639,26 +639,15 @@ impl Buffer {
 
         match (motion.boundary, motion.object) {
             (Boundary::Around, TextObject::Paren) => {
-                for k in 0..count {
-                    back += self.back_while(self.c - back, |_, curr| curr != '(');
-                    fwd += self.forward_while(self.d + fwd, |curr, _| curr != ')');
-                    if !last_iteration(k) && !at_boundary(self.c - back) {
-                        back += 1;
-                    }
-                    if !last_iteration(k) && !at_boundary(self.d + fwd) {
-                        fwd += 1;
-                    }
-
-                    println!("iteration: {} back {} fwd {}", k, back, fwd);
-                }
-                if !(char_at(self.c - back) == '(' && char_at(self.d + fwd) == ')') {
-                    empty_span = true;
-                }
+                (back, fwd, empty_span) = self.span_around_symbol('(', ')', count);
             }
-            (Boundary::Inner, TextObject::Paren) => {
+            (Boundary::Around, TextObject::CurlyBracket) => {
+                (back, fwd, empty_span) = self.span_around_symbol('{', '}', count);
+            }
+            (Boundary::Inner, TextObject::Paren) | (Boundary::Inner, TextObject::CurlyBracket) => {
                 let span = self.span(Motion {
                     boundary: Boundary::Around,
-                    object: TextObject::Paren,
+                    object: motion.object,
                     count: Some(count),
                 });
                 return if span.is_empty() {
@@ -792,6 +781,46 @@ impl Buffer {
             span.start.row, span.start.col, span.end.row, span.end.col
         );
         span
+    }
+
+    fn span_inner_symbol(&self, start: char, end: char, count: usize) -> (usize, usize, bool) {
+        let (back, fwd, empty_span) = self.span_around_symbol(start, end, count);
+        let back = if back > 0 { back - 1 } else { 0 };
+        let fwd = if fwd > 0 { fwd - 1 } else { 0 };
+        (back, fwd, empty_span)
+    }
+
+    fn span_around_symbol(&self, start: char, end: char, count: usize) -> (usize, usize, bool) {
+        let mut back: usize = 0;
+        let mut fwd: usize = 0;
+        let mut empty_span = false;
+
+        let char_at = |idx: usize| {
+            if idx >= self.buf.len() {
+                '\0'
+            } else {
+                self.buf[idx]
+            }
+        };
+        let at_boundary = |idx: usize| idx == 0 || (idx >= self.buf.len() - 1);
+        let last_iteration = |k: usize| k == count - 1;
+
+        for k in 0..count {
+            back += self.back_while(self.c - back, |_, curr| curr != start);
+            fwd += self.forward_while(self.d + fwd, |curr, _| curr != end);
+            if !last_iteration(k) && !at_boundary(self.c - back) {
+                back += 1;
+            }
+            if !last_iteration(k) && !at_boundary(self.d + fwd) {
+                fwd += 1;
+            }
+        }
+
+        if !(char_at(self.c - back) == start && char_at(self.d + fwd) == end) {
+            empty_span = true;
+        }
+
+        (back, fwd, empty_span)
     }
 
     pub fn text_for_span(&self, span: Span) -> String {
