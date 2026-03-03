@@ -34,3 +34,26 @@ impl From<(usize, usize, usize, usize)> for Span {
         }
     }
 }
+
+impl Span {
+    pub fn is_empty(&self) -> bool {
+        self.start.row == self.end.row && self.start.col == self.end.col
+    }
+
+    // shrink at both sides
+    pub fn shrink(&self, n: usize) -> Self {
+        if self.end.col < n {
+            panic!("Cannot shrink span by {} characters", n);
+        }
+        Self {
+            start: Location {
+                row: self.start.row,
+                col: self.start.col + n,
+            },
+            end: Location {
+                row: self.end.row,
+                col: self.end.col - n,
+            },
+        }
+    }
+}

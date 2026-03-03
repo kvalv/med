@@ -506,6 +506,66 @@ fn test_span() {
     }
     let cases: Vec<Case> = vec![
         Case {
+            input: "x(foo)y",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(1),
+                boundary: Inner,
+                object: Paren,
+            },
+            want: "foo",
+        },
+        Case {
+            input: ")x(",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(2),
+                boundary: Around,
+                object: Paren,
+            },
+            want: "",
+        },
+        Case {
+            input: "a (xxx) b)",
+            pos: (0, 4),
+            motion: Motion {
+                count: Some(2),
+                boundary: Around,
+                object: Paren,
+            },
+            want: "",
+        },
+        Case {
+            input: "a (xxx) b",
+            pos: (0, 4),
+            motion: Motion {
+                count: Some(2),
+                boundary: Around,
+                object: Paren,
+            },
+            want: "",
+        },
+        Case {
+            input: "a (xxx) b",
+            pos: (0, 4),
+            motion: Motion {
+                count: Some(1),
+                boundary: Around,
+                object: Paren,
+            },
+            want: "(xxx)",
+        },
+        Case {
+            input: "a (inner) b",
+            pos: (0, 5),
+            motion: Motion {
+                count: Some(1),
+                boundary: Inner,
+                object: Paren,
+            },
+            want: "inner",
+        },
+        Case {
             input: "a b    c",
             pos: (0, 0),
             motion: Motion {

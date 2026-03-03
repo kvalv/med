@@ -159,7 +159,7 @@ impl Buffer {
         self.d >= self.buf.len() - 1
     }
 
-    fn go_back_while<T>(&self, start: usize, cond: T) -> usize
+    fn back_while<T>(&self, start: usize, cond: T) -> usize
     where
         T: Fn(Option<char>, char) -> bool,
     {
@@ -187,7 +187,7 @@ impl Buffer {
     }
 
     /// (current, next) -> bool. Returns the offset
-    fn advance_while<T>(&self, start: usize, cond: T) -> usize
+    fn forward_while<T>(&self, start: usize, cond: T) -> usize
     where
         T: Fn(char, Option<char>) -> bool,
     {
@@ -227,7 +227,7 @@ impl Buffer {
                     if start.is_whitespace() {
                         // handle that by just munching whitespace
                         let i = self
-                            .advance_while(self.d, |_, next| next.map(is_word).unwrap_or(false));
+                            .forward_while(self.d, |_, next| next.map(is_word).unwrap_or(false));
                         self.d += i;
                         return;
                     }
@@ -235,10 +235,10 @@ impl Buffer {
                     // otherwise it's a word. We'll eat up all words,
                     // and then we'll eat up any trailing whitespace
 
-                    let i = self.advance_while(self.d, |curr, _| is_word(curr));
+                    let i = self.forward_while(self.d, |curr, _| is_word(curr));
 
                     self.d += i;
-                    let j = self.advance_while(self.d, |curr, _| curr == ' ');
+                    let j = self.forward_while(self.d, |curr, _| curr == ' ');
                     self.d += j;
                 }
             }
@@ -253,14 +253,13 @@ impl Buffer {
                     is_word
                 };
 
-                let i =
-                    self.go_back_while(self.c, |prev, _| prev.map(want_removed).unwrap_or(false));
+                let i = self.back_while(self.c, |prev, _| prev.map(want_removed).unwrap_or(false));
                 self.c -= i;
                 self.col -= i;
 
                 // forward
                 let j =
-                    self.advance_while(self.d, |_, next| next.map(want_removed).unwrap_or(false));
+                    self.forward_while(self.d, |_, next| next.map(want_removed).unwrap_or(false));
                 // let end = self.advance_while(self.d, is_word);
                 self.d += j + 1;
             }
@@ -622,82 +621,123 @@ impl Buffer {
 
     pub fn span(&self, motion: Motion) -> Span {
         let wc = WordClass::from(self.current_char());
+        let count = motion.count.unwrap_or(1);
 
-        let mut i: usize = 0;
-        let mut j: usize = 0;
+        let last_iteration = |k: usize| k == count - 1;
+        let at_boundary = |idx| idx == 0 || (idx >= self.buf.len() - 1);
+        let char_at = |idx: usize| {
+            if idx >= self.buf.len() {
+                '\0'
+            } else {
+                self.buf[idx]
+            }
+        };
+
+        let mut back: usize = 0;
+        let mut fwd: usize = 0;
+        let mut empty_span = false;
 
         match (motion.boundary, motion.object) {
+            (Boundary::Around, TextObject::Paren) => {
+                for k in 0..count {
+                    back += self.back_while(self.c - back, |_, curr| curr != '(');
+                    fwd += self.forward_while(self.d + fwd, |curr, _| curr != ')');
+                    if !last_iteration(k) && !at_boundary(self.c - back) {
+                        back += 1;
+                    }
+                    if !last_iteration(k) && !at_boundary(self.d + fwd) {
+                        fwd += 1;
+                    }
+
+                    println!("iteration: {} back {} fwd {}", k, back, fwd);
+                }
+                if !(char_at(self.c - back) == '(' && char_at(self.d + fwd) == ')') {
+                    empty_span = true;
+                }
+            }
+            (Boundary::Inner, TextObject::Paren) => {
+                let span = self.span(Motion {
+                    boundary: Boundary::Around,
+                    object: TextObject::Paren,
+                    count: Some(count),
+                });
+                return if span.is_empty() {
+                    span
+                } else {
+                    span.shrink(1)
+                };
+            }
             (Boundary::Current, TextObject::Word) => {
-                for _ in 0..motion.count.unwrap_or(1) {
+                for _ in 0..count {
                     // munch characters until end of wordclass
-                    j += self
-                        .advance_while(self.d, |_, next| next.map(|c| wc.eq(c)).unwrap_or(false));
+                    fwd += self
+                        .forward_while(self.d, |_, next| next.map(|c| wc.eq(c)).unwrap_or(false));
                     // next pass: munch whitespaces
-                    j += self.advance_while(self.d + j + 1, |curr, _| {
+                    fwd += self.forward_while(self.d + fwd + 1, |curr, _| {
                         WordClass::from(curr) == WordClass::Whitespace
                     });
                     // finally: if there's more text, let's put cursor on the
                     // next char
-                    if self.d + j + 1 < self.buf.len() {
-                        j += 1;
+                    if self.d + fwd + 1 < self.buf.len() {
+                        fwd += 1;
                     }
                 }
             }
             (Boundary::Inner, TextObject::Word) => {
                 // backwards pass
-                i = self.go_back_while(self.c, |prev, _| prev.map(|c| wc.eq(c)).unwrap_or(false));
-                println!("would go back by {} chars", i);
+                back = self.back_while(self.c, |prev, _| prev.map(|c| wc.eq(c)).unwrap_or(false));
+                println!("would go back by {} chars", back);
 
                 // forward
-                j = 0;
+                fwd = 0;
                 let mut wc_forward = wc;
-                for k in 0..motion.count.unwrap_or(1) {
+                for k in 0..count {
                     println!(
                         "k={} Start char is '{}' and wc is {:?} and index is {}",
                         k,
-                        self.buf[self.d + j],
+                        self.buf[self.d + fwd],
                         wc_forward,
-                        self.d + j
+                        self.d + fwd
                     );
-                    let tmp = self.advance_while(self.d + j, |curr, next| {
+                    let tmp = self.forward_while(self.d + fwd, |curr, next| {
                         println!("curr='{}' next='{:?}'", curr, next);
                         next.map(|c| wc_forward.eq(c)).unwrap_or(false)
                     });
-                    j += tmp;
+                    fwd += tmp;
 
-                    if k == motion.count.unwrap_or(1) - 1 {
+                    if k == count - 1 {
                         break;
                     }
 
                     // if already at end -> nothing to do
-                    if self.d + j + 1 >= self.buf.len() {
+                    if self.d + fwd + 1 >= self.buf.len() {
                         println!("At end nothing to do");
                         break;
                     }
 
-                    j += 1; // 
+                    fwd += 1; // 
 
                     println!(
                         "buf.len={} d={} j={} tmp={} d will look at '{}'",
                         self.buf.len(),
                         self.d,
-                        j,
+                        fwd,
                         tmp,
-                        if self.d + j >= self.buf.len() {
+                        if self.d + fwd >= self.buf.len() {
                             'X'
                         } else {
-                            self.buf[self.d + j]
+                            self.buf[self.d + fwd]
                         }
                     );
 
                     // // if more -> advance cursor one more step??
                     // // and now we want
-                    wc_forward = if self.d + j >= self.buf.len() {
+                    wc_forward = if self.d + fwd >= self.buf.len() {
                         WordClass::Whitespace
                     } else {
-                        WordClass::from(self.buf[self.d + j])
+                        WordClass::from(self.buf[self.d + fwd])
                     };
-                    println!("self.d+j = {}", self.d + j);
+                    println!("self.d+j = {}", self.d + fwd);
                     // println!(
                     //     "Moved forward by {}, char is '{}' and wc_forward is {:?}",
                     //     tmp,
@@ -710,10 +750,7 @@ impl Buffer {
             _ => todo!(),
         }
 
-        println!("go back by {} and forward by {}", i, j);
-
-        // tells me how much to advance and go back. Not sure how
-        // to translate this to a
+        println!("go back by {} and forward by {}", back, fwd);
 
         let mut span = Span {
             start: Location {
@@ -726,7 +763,14 @@ impl Buffer {
             },
         };
 
-        for k in 0..i {
+        if empty_span {
+            // e.g. due to '2a(' when there is no second paranthesis
+            // --> empty span (no words selected)
+            span.end.col -= 1;
+            return span;
+        }
+
+        for k in 0..back {
             if self.buf[self.c - k] == '\n' {
                 span.start.row -= 1;
                 span.start.col = self.num_columns(span.start.row);
@@ -735,7 +779,7 @@ impl Buffer {
                 println!("subtracting one in span.start.col");
             }
         }
-        for k in 0..j {
+        for k in 0..fwd {
             if self.buf[self.d + k] == '\n' {
                 span.end.row += 1;
                 span.end.col = 0;
@@ -765,7 +809,6 @@ impl Buffer {
             if cloned.at_eof() {
                 return chars.iter().collect();
             }
-            println!("pushed char '{}' for span text", chars.last().unwrap());
             cloned.right(1);
         }
         panic!("hit iteration limit in text_for_span - probably a bug");
