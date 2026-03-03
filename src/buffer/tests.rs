@@ -505,16 +505,106 @@ fn test_span() {
         want: &'static str,
     }
     let cases: Vec<Case> = vec![
-        // Case {
-        //     input: "the cat sat",
-        //     pos: (0, 0),
-        //     motion: Motion {
-        //         count: Some(1),
-        //         boundary: Current,
-        //         object: Word,
-        //     },
-        //     want: "the c",
-        // },
+        Case {
+            input: "a b    c",
+            pos: (0, 0),
+            motion: Motion {
+                count: Some(2),
+                boundary: Current,
+                object: Word,
+            },
+            want: "a b    c",
+        },
+        Case {
+            input: "a b    c",
+            pos: (0, 0),
+            motion: Motion {
+                count: Some(1),
+                boundary: Current,
+                object: Word,
+            },
+            want: "a b",
+        },
+        Case {
+            input: "a",
+            pos: (0, 0),
+            motion: Motion {
+                count: Some(2),
+                boundary: Current,
+                object: Word,
+            },
+            want: "a",
+        },
+        Case {
+            input: "foo.!bar",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(3),
+                boundary: Current,
+                object: Word,
+            },
+            want: "oo.!bar",
+        },
+        Case {
+            input: "foo.!bar",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(2),
+                boundary: Current,
+                object: Word,
+            },
+            want: "oo.!b",
+        },
+        Case {
+            input: "foo.!bar",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(1),
+                boundary: Current,
+                object: Word,
+            },
+            want: "oo.",
+        },
+        Case {
+            input: "foo.bar",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(1),
+                boundary: Current,
+                object: Word,
+            },
+            want: "oo.",
+        },
+        Case {
+            input: "cat ",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(1),
+                boundary: Current,
+                object: Word,
+            },
+            want: "at ",
+        },
+        Case {
+            input: "the cat ",
+            pos: (0, 5),
+            motion: Motion {
+                count: Some(1),
+                boundary: Current,
+                object: Word,
+            },
+            want: "at ",
+        },
+        Case {
+            input: "the cat sat",
+            pos: (0, 5),
+            motion: Motion {
+                count: Some(1),
+                boundary: Current,
+                object: Word,
+            },
+            want: "at s",
+        },
         Case {
             input: "the cat     sat",
             pos: (0, 5),
@@ -684,7 +774,7 @@ fn test_span() {
         let got = b.text_for_span(span);
         assert_eq!(
             tc.want, got,
-            "Case {i} failed: input={:?} pos={:?} motion={:?}",
+            "\n\nCase {i} failed: input={:?} pos={:?} motion={:?}\n",
             tc.input, tc.pos, tc.motion
         );
     }
