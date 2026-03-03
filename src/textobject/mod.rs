@@ -9,6 +9,23 @@ pub enum TextObject {
          // Brack, // <>
 }
 
+impl TextObject {
+    pub fn open_symbol(&self) -> Option<char> {
+        match self {
+            TextObject::Paren => Some('('),
+            TextObject::CurlyBracket => Some('{'),
+            _ => None,
+        }
+    }
+    pub fn close_symbol(&self) -> Option<char> {
+        match self {
+            TextObject::Paren => Some(')'),
+            TextObject::CurlyBracket => Some('}'),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash, Copy)]
 pub enum Boundary {
     #[default]

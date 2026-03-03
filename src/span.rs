@@ -20,6 +20,15 @@ pub struct Span {
     pub end: Location,
 }
 
+impl Span {
+    pub fn empty_at(row: usize, col: usize) -> Self {
+        Self {
+            start: Location { row, col },
+            end: Location { row, col },
+        }
+    }
+}
+
 impl From<(usize, usize, usize, usize)> for Span {
     fn from(value: (usize, usize, usize, usize)) -> Self {
         Self {

@@ -1,3 +1,5 @@
+use crossterm::terminal::window_size;
+
 use crate::textobject::Boundary::*;
 use crate::textobject::TextObject::*;
 
@@ -505,6 +507,16 @@ fn test_span() {
         want: &'static str,
     }
     let cases: Vec<Case> = vec![
+        Case {
+            input: "(wow\n)",
+            pos: (0, 1),
+            motion: Motion {
+                count: Some(1),
+                boundary: Around,
+                object: Paren,
+            },
+            want: "(wow\n)",
+        },
         Case {
             input: "x{foo}y",
             pos: (0, 1),

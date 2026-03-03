@@ -637,16 +637,20 @@ impl Buffer {
         let mut fwd: usize = 0;
         let mut empty_span = false;
 
+        use Boundary::*;
+        use TextObject::*;
+
         match (motion.boundary, motion.object) {
-            (Boundary::Around, TextObject::Paren) => {
-                (back, fwd, empty_span) = self.span_around_symbol('(', ')', count);
+            (Around, Paren) | (Around, CurlyBracket) => {
+                (back, fwd, empty_span) = self.span_around_symbol(
+                    motion.object.open_symbol().unwrap(),
+                    motion.object.close_symbol().unwrap(),
+                    count,
+                );
             }
-            (Boundary::Around, TextObject::CurlyBracket) => {
-                (back, fwd, empty_span) = self.span_around_symbol('{', '}', count);
-            }
-            (Boundary::Inner, TextObject::Paren) | (Boundary::Inner, TextObject::CurlyBracket) => {
+            (Inner, Paren) | (Inner, CurlyBracket) => {
                 let span = self.span(Motion {
-                    boundary: Boundary::Around,
+                    boundary: Around,
                     object: motion.object,
                     count: Some(count),
                 });
@@ -656,7 +660,7 @@ impl Buffer {
                     span.shrink(1)
                 };
             }
-            (Boundary::Current, TextObject::Word) => {
+            (Current, Word) => {
                 for _ in 0..count {
                     // munch characters until end of wordclass
                     fwd += self
@@ -672,7 +676,7 @@ impl Buffer {
                     }
                 }
             }
-            (Boundary::Inner, TextObject::Word) => {
+            (Inner, Word) => {
                 // backwards pass
                 back = self.back_while(self.c, |prev, _| prev.map(|c| wc.eq(c)).unwrap_or(false));
                 println!("would go back by {} chars", back);
@@ -741,6 +745,12 @@ impl Buffer {
 
         println!("go back by {} and forward by {}", back, fwd);
 
+        if empty_span {
+            // e.g. due to '2a(' when there is no second paranthesis
+            // --> empty span (no words selected)
+            return Span::empty_at(self.row, self.col);
+        }
+
         let mut span = Span {
             start: Location {
                 row: self.row,
@@ -752,26 +762,24 @@ impl Buffer {
             },
         };
 
-        if empty_span {
-            // e.g. due to '2a(' when there is no second paranthesis
-            // --> empty span (no words selected)
-            span.end.col -= 1;
-            return span;
-        }
-
         for k in 0..back {
             if self.buf[self.c - k] == '\n' {
                 span.start.row -= 1;
                 span.start.col = self.num_columns(span.start.row);
+                // println!(
+                //     "subtracting one in span.start.row and setting col to {}",
+                //     span.start.col
+                // );
             } else {
                 span.start.col -= 1;
-                println!("subtracting one in span.start.col");
+                // println!("subtracting one in span.start.col");
             }
         }
         for k in 0..fwd {
             if self.buf[self.d + k] == '\n' {
                 span.end.row += 1;
-                span.end.col = 0;
+                span.end.col = 1; // To include? I added col=1 to make va( with
+            // newline work.
             } else {
                 span.end.col += 1;
             }
@@ -783,14 +791,13 @@ impl Buffer {
         span
     }
 
-    fn span_inner_symbol(&self, start: char, end: char, count: usize) -> (usize, usize, bool) {
-        let (back, fwd, empty_span) = self.span_around_symbol(start, end, count);
-        let back = if back > 0 { back - 1 } else { 0 };
-        let fwd = if fwd > 0 { fwd - 1 } else { 0 };
-        (back, fwd, empty_span)
-    }
-
-    fn span_around_symbol(&self, start: char, end: char, count: usize) -> (usize, usize, bool) {
+    // A helper function for span. The logic for a(, a{, a[, ... is the same, just with different symbols.
+    fn span_around_symbol(
+        &self,
+        open_symbol: char,
+        close_symbol: char,
+        count: usize,
+    ) -> (usize, usize, bool) {
         let mut back: usize = 0;
         let mut fwd: usize = 0;
         let mut empty_span = false;
@@ -806,8 +813,9 @@ impl Buffer {
         let last_iteration = |k: usize| k == count - 1;
 
         for k in 0..count {
-            back += self.back_while(self.c - back, |_, curr| curr != start);
-            fwd += self.forward_while(self.d + fwd, |curr, _| curr != end);
+            back += self.back_while(self.c - back, |_, curr| curr != open_symbol);
+            fwd += self.forward_while(self.d + fwd, |curr, _| curr != close_symbol);
+            println!("k={} back={} fwd={}", k, back, fwd);
             if !last_iteration(k) && !at_boundary(self.c - back) {
                 back += 1;
             }
@@ -816,7 +824,7 @@ impl Buffer {
             }
         }
 
-        if !(char_at(self.c - back) == start && char_at(self.d + fwd) == end) {
+        if !(char_at(self.c - back) == open_symbol && char_at(self.d + fwd) == close_symbol) {
             empty_span = true;
         }
 
