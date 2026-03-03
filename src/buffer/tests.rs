@@ -497,6 +497,22 @@ fn test_undo() {
 }
 
 #[test]
+fn test_delete_span() {
+    use crate::cmd::pattern::Motion;
+
+    let mut b = Buffer::from("the cat sat");
+    b.position(0, 5);
+    let span = b.span(Motion {
+        count: Some(1),
+        boundary: Inner,
+        object: Word,
+    });
+    println!("span is {}", span);
+    b.delete_span(span, false);
+    assert_eq!("the  sat", b.text());
+}
+
+#[test]
 fn test_span() {
     use crate::cmd::pattern::Motion;
 

@@ -28,8 +28,10 @@ pub fn delete(app: &mut App) -> Result<(), String> {
                 &motion.boundary,
                 &motion.object
             );
-            app.buf
-                .d(motion.count.unwrap_or(1), motion.boundary, motion.object);
+            let span = app.buf.span(motion);
+            app.buf.delete_span(span, true);
+            // app.buf
+            //     .d(motion.count.unwrap_or(1), motion.boundary, motion.object);
         }
         _ => {
             app.buf.d(count, Boundary::Current, TextObject::Word);

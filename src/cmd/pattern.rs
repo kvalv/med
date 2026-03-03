@@ -196,6 +196,8 @@ impl Motion {
             Some('i') => boundary = Boundary::Inner,
             Some('w') => object = Some(TextObject::Word),
             Some('e') => object = Some(TextObject::End),
+            Some('(') => object = Some(TextObject::Paren),
+            Some('{') => object = Some(TextObject::CurlyBracket),
             _ => return (None, 0),
         }
         consumed += 1;
@@ -203,6 +205,8 @@ impl Motion {
         match it.next() {
             Some('w') => object = Some(TextObject::Word),
             Some('e') => object = Some(TextObject::End),
+            Some('(') => object = Some(TextObject::Paren),
+            Some('{') => object = Some(TextObject::CurlyBracket),
             _ => {}
         };
 

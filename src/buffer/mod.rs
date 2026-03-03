@@ -572,6 +572,22 @@ impl Buffer {
             Some(self.buf[self.d + 1])
         }
     }
+    fn current_loc(&self) -> Location {
+        self.buf.iter().fold(Location { row: 1, col: 1 }, |loc, c| {
+            if *c == '\n' {
+                Location {
+                    row: loc.col + 1,
+                    col: 0,
+                }
+            } else {
+                Location {
+                    row: loc.row,
+                    col: loc.col + 1,
+                }
+            }
+        })
+        // self.
+    }
 
     #[allow(dead_code)]
     fn show(&self) -> String {
@@ -623,15 +639,15 @@ impl Buffer {
         let wc = WordClass::from(self.current_char());
         let count = motion.count.unwrap_or(1);
 
-        let last_iteration = |k: usize| k == count - 1;
-        let at_boundary = |idx: usize| idx == 0 || (idx >= self.buf.len() - 1);
-        let char_at = |idx: usize| {
-            if idx >= self.buf.len() {
-                '\0'
-            } else {
-                self.buf[idx]
-            }
-        };
+        // let last_iteration = |k: usize| k == count - 1;
+        // let at_boundary = |idx: usize| idx == 0 || (idx >= self.buf.len() - 1);
+        // let char_at = |idx: usize| {
+        //     if idx >= self.buf.len() {
+        //         '\0'
+        //     } else {
+        //         self.buf[idx]
+        //     }
+        // };
 
         let mut back: usize = 0;
         let mut fwd: usize = 0;
@@ -679,21 +695,21 @@ impl Buffer {
             (Inner, Word) => {
                 // backwards pass
                 back = self.back_while(self.c, |prev, _| prev.map(|c| wc.eq(c)).unwrap_or(false));
-                println!("would go back by {} chars", back);
+                // println!("would go back by {} chars", back);
 
                 // forward
                 fwd = 0;
                 let mut wc_forward = wc;
                 for k in 0..count {
-                    println!(
-                        "k={} Start char is '{}' and wc is {:?} and index is {}",
-                        k,
-                        self.buf[self.d + fwd],
-                        wc_forward,
-                        self.d + fwd
-                    );
+                    // println!(
+                    //     "k={} Start char is '{}' and wc is {:?} and index is {}",
+                    //     k,
+                    //     self.buf[self.d + fwd],
+                    //     wc_forward,
+                    //     self.d + fwd
+                    // );
                     let tmp = self.forward_while(self.d + fwd, |curr, next| {
-                        println!("curr='{}' next='{:?}'", curr, next);
+                        // println!("curr='{}' next='{:?}'", curr, next);
                         next.map(|c| wc_forward.eq(c)).unwrap_or(false)
                     });
                     fwd += tmp;
@@ -704,24 +720,24 @@ impl Buffer {
 
                     // if already at end -> nothing to do
                     if self.d + fwd + 1 >= self.buf.len() {
-                        println!("At end nothing to do");
+                        // println!("At end nothing to do");
                         break;
                     }
 
                     fwd += 1; // 
 
-                    println!(
-                        "buf.len={} d={} j={} tmp={} d will look at '{}'",
-                        self.buf.len(),
-                        self.d,
-                        fwd,
-                        tmp,
-                        if self.d + fwd >= self.buf.len() {
-                            'X'
-                        } else {
-                            self.buf[self.d + fwd]
-                        }
-                    );
+                    // println!(
+                    //     "buf.len={} d={} j={} tmp={} d will look at '{}'",
+                    //     self.buf.len(),
+                    //     self.d,
+                    //     fwd,
+                    //     tmp,
+                    //     if self.d + fwd >= self.buf.len() {
+                    //         'X'
+                    //     } else {
+                    //         self.buf[self.d + fwd]
+                    //     }
+                    // );
 
                     // // if more -> advance cursor one more step??
                     // // and now we want
@@ -730,7 +746,7 @@ impl Buffer {
                     } else {
                         WordClass::from(self.buf[self.d + fwd])
                     };
-                    println!("self.d+j = {}", self.d + fwd);
+                    // println!("self.d+j = {}", self.d + fwd);
                     // println!(
                     //     "Moved forward by {}, char is '{}' and wc_forward is {:?}",
                     //     tmp,
@@ -743,7 +759,7 @@ impl Buffer {
             _ => todo!(),
         }
 
-        println!("go back by {} and forward by {}", back, fwd);
+        // println!("go back by {} and forward by {}", back, fwd);
 
         if empty_span {
             // e.g. due to '2a(' when there is no second paranthesis
@@ -784,11 +800,45 @@ impl Buffer {
                 span.end.col += 1;
             }
         }
-        println!(
-            "resulting span is ({}, {}) to ({}, {})",
-            span.start.row, span.start.col, span.end.row, span.end.col
-        );
+        // println!(
+        //     "resulting span is ({}, {}) to ({}, {})",
+        //     span.start.row, span.start.col, span.end.row, span.end.col
+        // );
         span
+    }
+
+    pub fn delete_span(&mut self, span: Span, include_end: bool) {
+        self.position(span.start.row, span.start.col);
+        // println!("start pos is {}: {}", self.c, span);
+
+        let mut loc = Location { row: 0, col: 0 };
+        let mut end_index = self
+            .text()
+            .char_indices()
+            .find(|(_, c)| {
+                if loc == span.end || loc.row > span.end.row {
+                    return true;
+                }
+                if *c == '\n' {
+                    loc.row += 1;
+                    loc.col = 1; // To include? I added col=1 to make va( with
+                } else {
+                    loc.col += 1;
+                }
+                false
+            })
+            .map(|(i, _)| i);
+
+        if include_end {
+            end_index = end_index.map(|v| v + 1);
+        }
+
+        if let Some(end_index) = end_index {
+            let diff = end_index - self.c;
+            self.d += diff;
+        } else {
+            panic!("end_index");
+        }
     }
 
     // A helper function for span. The logic for a(, a{, a[, ... is the same, just with different symbols.
@@ -815,7 +865,7 @@ impl Buffer {
         for k in 0..count {
             back += self.back_while(self.c - back, |_, curr| curr != open_symbol);
             fwd += self.forward_while(self.d + fwd, |curr, _| curr != close_symbol);
-            println!("k={} back={} fwd={}", k, back, fwd);
+            // println!("k={} back={} fwd={}", k, back, fwd);
             if !last_iteration(k) && !at_boundary(self.c - back) {
                 back += 1;
             }

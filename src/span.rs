@@ -20,6 +20,17 @@ pub struct Span {
     pub end: Location,
 }
 
+// displa (a,b) (c, d)
+impl std::fmt::Display for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "({},{}), ({},{})",
+            self.start.row, self.start.col, self.end.row, self.end.col
+        )
+    }
+}
+
 impl Span {
     pub fn empty_at(row: usize, col: usize) -> Self {
         Self {
