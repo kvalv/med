@@ -10,15 +10,15 @@
 
 use std::char;
 
-use log::{info, warn};
+use log::{info, log, warn};
 
 use crate::{
     buffer::history::{Change, ChangeHistory, Operation},
     cmd::pattern::Motion,
-    span::{Location, Span},
+    span::{Position, Span},
     textobject::{Boundary, TextObject},
 };
-mod history;
+pub mod history;
 
 /// A Buffer represents a file that is being edited.
 /// Implemented as a gap buffer
@@ -420,17 +420,25 @@ impl Buffer {
 
     pub fn undo(&mut self) {
         if let Some(change) = self.changes.undo() {
-            self.apply(change, Operation::Undo);
+            // Undo means we want to use the 'old'
+            // Delete the 'new text' at a given span, then insert
+
+            // self.delete_span(change.span, true);
+
+            self.insert_text(change.span.start, &change.old);
+            // println!(
+            //     "insert text {} chars '{}' at pos {} - new text is '{}'",
+            //     change.old.len(),
+            //     &change.old,
+            //     change.span.start,
+            //     self.text(),
+            // );
         }
     }
     pub fn redo(&mut self) {
         if let Some(change) = self.changes.redo() {
-            self.apply(change, Operation::Redo);
+            todo!();
         }
-    }
-
-    fn apply(&mut self, _change: Change, _op: Operation) {
-        todo!()
     }
 
     /// vim-motion, go back by word
@@ -572,21 +580,24 @@ impl Buffer {
             Some(self.buf[self.d + 1])
         }
     }
-    fn current_loc(&self) -> Location {
-        self.buf.iter().fold(Location { row: 1, col: 1 }, |loc, c| {
+
+    /// current position of the cursor
+    pub fn current_position(&self) -> Position {
+        let mut pos = Position { row: 0, col: 0 };
+        for c in self.buf.iter().take(self.c) {
             if *c == '\n' {
-                Location {
-                    row: loc.col + 1,
-                    col: 0,
-                }
+                pos.row += 1;
+                pos.col = 0;
             } else {
-                Location {
-                    row: loc.row,
-                    col: loc.col + 1,
-                }
+                pos.col += 1;
             }
-        })
-        // self.
+        }
+        pos
+    }
+
+    pub fn register_change(&mut self, change: Change) {
+        info!("Change registered: ");
+        self.changes.register(change);
     }
 
     #[allow(dead_code)]
@@ -768,11 +779,11 @@ impl Buffer {
         }
 
         let mut span = Span {
-            start: Location {
+            start: Position {
                 row: self.row,
                 col: self.col,
             },
-            end: Location {
+            end: Position {
                 row: self.row,
                 col: self.col + 1,
             },
@@ -807,11 +818,10 @@ impl Buffer {
         span
     }
 
-    pub fn delete_span(&mut self, span: Span, include_end: bool) {
+    pub fn delete_span(&mut self, span: Span, include_end: bool) -> String {
         self.position(span.start.row, span.start.col);
-        // println!("start pos is {}: {}", self.c, span);
 
-        let mut loc = Location { row: 0, col: 0 };
+        let mut loc = Position { row: 0, col: 0 };
         let mut end_index = self
             .text()
             .char_indices()
@@ -835,10 +845,31 @@ impl Buffer {
 
         if let Some(end_index) = end_index {
             let diff = end_index - self.c;
+            let deleted_text: String = self.buf.iter().skip(self.d).take(diff).collect();
             self.d += diff;
+            deleted_text
         } else {
             panic!("end_index");
         }
+    }
+
+    /// Inserts text at a given position, preserving the cursor location
+    pub fn insert_text(&mut self, insert_at: Position, text: &str) {
+        let pos = self.current_position();
+
+        self.position(insert_at.row, insert_at.col);
+        for c in text.chars() {
+            self.insert(c);
+        }
+
+        let end_pos = if pos < insert_at {
+            // inserted text is to the right of the cursor, so the cursor stays
+            insert_at
+        } else {
+            // to the left -> we need to adjust. We'll add the implied from the text
+            pos + Span::from(text)
+        };
+        self.position(end_pos.row, end_pos.col);
     }
 
     // A helper function for span. The logic for a(, a{, a[, ... is the same, just with different symbols.

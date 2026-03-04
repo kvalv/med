@@ -4,6 +4,7 @@ use crate::{
     app::{App, Mode},
     cmd::pattern::Motion,
     event::AppEvent,
+    textobject::Boundary,
 };
 
 pub fn change(app: &mut App) -> Result<(), String> {
@@ -24,8 +25,12 @@ pub fn change(app: &mut App) -> Result<(), String> {
                 &motion.object
             );
 
+            let span = app.buf.span(motion);
             app.buf
-                .d(motion.count.unwrap_or(1), motion.boundary, motion.object);
+                .delete_span(span, motion.boundary != Boundary::Current);
+
+            // app.buf
+            //     .d(motion.count.unwrap_or(1), motion.boundary, motion.object);
             app.events.send(AppEvent::ModeChange(Mode::Insert));
             Ok(())
         }

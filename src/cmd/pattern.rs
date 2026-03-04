@@ -157,7 +157,7 @@ fn extract_count(input: &str) -> (Option<usize>, &str) {
 // or basically: d + motion
 // Pattern2::new().Require('d').Optional(Count).
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Motion {
     pub count: Option<usize>,
     pub boundary: Boundary,

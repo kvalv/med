@@ -508,8 +508,31 @@ fn test_delete_span() {
         object: Word,
     });
     println!("span is {}", span);
-    b.delete_span(span, false);
+    let text = b.delete_span(span, false);
     assert_eq!("the  sat", b.text());
+    assert_eq!("cat", text);
+
+    let change = Change {
+        span,
+        old: text,
+        new: "".to_string(),
+    };
+    b.register_change(change);
+
+    b.undo();
+    assert_eq!("the cat sat", b.text());
+}
+
+#[test]
+fn test_insert_span() {
+    let mut b = Buffer::from("abc ghi");
+    b.position(0, 5);
+    assert_eq!("(0,5)", b.current_position().to_string());
+    assert_eq!('h', b.current_char(),);
+
+    b.insert_text(Position { row: 0, col: 4 }, "def  ");
+    assert_eq!("abc def  ghi", b.text());
+    assert_eq!('h', b.current_char());
 }
 
 #[test]

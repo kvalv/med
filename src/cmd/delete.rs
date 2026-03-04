@@ -2,6 +2,7 @@ use log::info;
 
 use crate::{
     app::App,
+    buffer::history::Change,
     cmd::pattern::Motion,
     textobject::{Boundary, TextObject},
 };
@@ -29,11 +30,17 @@ pub fn delete(app: &mut App) -> Result<(), String> {
                 &motion.object
             );
             let span = app.buf.span(motion);
-            app.buf.delete_span(span, true);
-            // app.buf
-            //     .d(motion.count.unwrap_or(1), motion.boundary, motion.object);
+            let change = Change {
+                span: span.clone(),
+                old: app
+                    .buf
+                    .delete_span(span, motion.boundary != Boundary::Current),
+                new: "".to_string(),
+            };
+            app.buf.register_change(change);
         }
         _ => {
+            panic!("unknown motion from '{}'", app.cmdbuf.text());
             app.buf.d(count, Boundary::Current, TextObject::Word);
             info!("Deleted {} word(s)", count);
         }

@@ -327,6 +327,7 @@ fn create_command_handlers() -> CommandHandlers {
     vec![
         (Pattern::from("i"), cmd::insert::insert),
         (Pattern::from("a") | Pattern::from("A"), cmd::append::append),
+        (Pattern::from("u"), cmd::undo::undo),
         (Pattern::from("d<motion>"), cmd::delete::delete),
         (Pattern::from("c<motion>"), cmd::change::change),
         (
