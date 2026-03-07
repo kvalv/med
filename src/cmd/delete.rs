@@ -3,13 +3,13 @@ use log::info;
 use crate::{
     app::App,
     buffer::history::Change,
-    textobject::{Boundary, Motion, TextObject},
+    textobject::{Boundary, parse_textobject},
 };
 
 pub fn delete(app: &mut App) -> Result<(), String> {
     info!("cmdhandler.delete: text is '{}'", app.cmdbuf.text());
 
-    let count = app.cmdbuf.pop_count().unwrap_or(1);
+    let count = app.cmdbuf.pop_count(1);
     // now we'll expect that 'd' is the argument
 
     match app.cmdbuf.pop_left() {
@@ -17,31 +17,26 @@ pub fn delete(app: &mut App) -> Result<(), String> {
         x => panic!("Expected 'd' but it's {:?}", x),
     }
 
-    let (motion, _) = Motion::from_cmd(&app.cmdbuf.text());
-    info!("got motion {:?}", motion);
+    let (parsed, _) = parse_textobject(&app.cmdbuf.text());
+    info!("got textobject {:?}", parsed);
 
-    match motion {
-        Some(motion) => {
+    match parsed {
+        Some((object, boundary, obj_count)) => {
+            let count = obj_count.unwrap_or(count);
             info!(
                 "Deleted count={:?} boundary={:?} object={:?}",
-                &motion.count.unwrap_or(1),
-                &motion.boundary,
-                &motion.object
+                count, &boundary, &object
             );
-            let span = app.buf.span(motion);
+            let span = app.buf.span_for_textobject(object, boundary, count);
             let change = Change {
-                span: span.clone(),
-                old: app
-                    .buf
-                    .delete_span(span, motion.boundary != Boundary::Current),
+                span,
+                old: app.buf.delete_span(span, boundary != Boundary::Current),
                 new: "".to_string(),
             };
             app.buf.register_change(change);
         }
         _ => {
             panic!("unknown motion from '{}'", app.cmdbuf.text());
-            app.buf.d(count, Boundary::Current, TextObject::Word);
-            info!("Deleted {} word(s)", count);
         }
     }
     Ok(())

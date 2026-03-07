@@ -10,12 +10,12 @@
 
 use std::char;
 
-use log::{info, log, warn};
+use log::{info, warn};
 
 use crate::{
-    buffer::history::{Change, ChangeHistory, Operation},
+    buffer::history::{Change, ChangeHistory},
     span::{Position, Span},
-    textobject::{Boundary, Motion, TextObject},
+    textobject::{Boundary, TextObject},
 };
 pub mod history;
 
@@ -435,7 +435,7 @@ impl Buffer {
         }
     }
     pub fn redo(&mut self) {
-        if let Some(change) = self.changes.redo() {
+        if let Some(_) = self.changes.redo() {
             todo!();
         }
     }
@@ -645,9 +645,8 @@ impl Buffer {
         }
     }
 
-    pub fn span(&self, motion: Motion) -> Span {
+    pub fn span_for_textobject(&self, obj: TextObject, boundary: Boundary, count: usize) -> Span {
         let wc = WordClass::from(self.current_char());
-        let count = motion.count.unwrap_or(1);
 
         // let last_iteration = |k: usize| k == count - 1;
         // let at_boundary = |idx: usize| idx == 0 || (idx >= self.buf.len() - 1);
@@ -666,20 +665,16 @@ impl Buffer {
         use Boundary::*;
         use TextObject::*;
 
-        match (motion.boundary, motion.object) {
+        match (boundary, obj) {
             (Around, Paren) | (Around, CurlyBracket) => {
                 (back, fwd, empty_span) = self.span_around_symbol(
-                    motion.object.open_symbol().unwrap(),
-                    motion.object.close_symbol().unwrap(),
+                    obj.open_symbol().unwrap(),
+                    obj.close_symbol().unwrap(),
                     count,
                 );
             }
             (Inner, Paren) | (Inner, CurlyBracket) => {
-                let span = self.span(Motion {
-                    boundary: Around,
-                    object: motion.object,
-                    count: Some(count),
-                });
+                let span = self.span_for_textobject(obj, Around, count);
                 return if span.is_empty() {
                     span
                 } else {
@@ -718,7 +713,7 @@ impl Buffer {
                     //     wc_forward,
                     //     self.d + fwd
                     // );
-                    let tmp = self.forward_while(self.d + fwd, |curr, next| {
+                    let tmp = self.forward_while(self.d + fwd, |_, next| {
                         // println!("curr='{}' next='{:?}'", curr, next);
                         next.map(|c| wc_forward.eq(c)).unwrap_or(false)
                     });

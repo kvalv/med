@@ -53,16 +53,16 @@ impl CmdBuf {
     }
 
     // pops from the cmdbuf a count
-    pub fn pop_count(&mut self) -> Option<usize> {
+    pub fn pop_count(&mut self, default_value: usize) -> usize {
         let count: String = self.buf.iter().take_while(|c| c.is_numeric()).collect();
 
         if count.is_empty() {
-            None
+            default_value
         } else {
             for _ in 0..count.len() {
                 self.buf.remove(0);
             }
-            count.parse::<usize>().ok()
+            count.parse::<usize>().unwrap_or(default_value)
         }
     }
     pub fn is_empty(&self) -> bool {

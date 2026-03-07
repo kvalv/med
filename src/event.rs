@@ -36,7 +36,7 @@ pub enum AppEvent {
     /// Quit the application.
     Quit,
     ModeChange(Mode),
-    Movement,    // hjkl, w, b, ...
+    // Movement,    // hjkl, w, b, ...
     Write(char), // Writes a character to the current cursor position.
     BufWrite,
     ExCommandSubmit,

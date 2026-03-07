@@ -7,8 +7,9 @@ pub enum TextObject {
     CurlyBracket, // {}
     Word,
     End, // e
-         // Paren, // ()
-         // Brack, // <>
+    // Paren, // ()
+    // Brack, // <>
+    Back, // b
 }
 
 impl TextObject {
@@ -107,10 +108,6 @@ pub enum MatchResult {
     Match,
 }
 
-pub trait PatternMatcher {
-    fn matches_pattern(&self, text: &str) -> MatchResult;
-}
-
 impl Pattern {
     pub fn matches(&self, test: &str) -> MatchResult {
         if let Some(c) = self.verb {
@@ -122,7 +119,7 @@ impl Pattern {
             if rest.is_empty() {
                 return MatchResult::PartialMatch;
             }
-            let got = Motion::matches(&rest);
+            let got = match_textobject(&rest);
             return got;
         }
 
@@ -188,71 +185,57 @@ fn extract_count(input: &str) -> (Option<usize>, &str) {
     }
 }
 
-#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct Motion {
-    pub count: Option<usize>,
-    pub boundary: Boundary,
-    pub object: TextObject,
+// textobject: a|i <object>
+
+pub fn match_textobject(input: &str) -> MatchResult {
+    let (m, _) = parse_textobject(input);
+    if m.is_some() {
+        return MatchResult::Match;
+    }
+
+    let (count, rest) = extract_count(input);
+
+    if count.is_some() && count.unwrap() > 0 {
+        return MatchResult::PartialMatch;
+    }
+
+    match rest.chars().next() {
+        Some('a' | 'i') => MatchResult::PartialMatch,
+        _ => MatchResult::NoMatch,
+    }
 }
 
-impl Motion {
-    pub fn matches(input: &str) -> MatchResult {
-        let (m, _) = Self::from_cmd(input);
-        if m.is_some() {
-            return MatchResult::Match;
-        }
+pub fn parse_textobject(input: &str) -> (Option<(TextObject, Boundary, Option<usize>)>, usize) {
+    let (count, rest) = extract_count(input);
+    let mut consumed = count.iter().len();
 
-        let (count, rest) = extract_count(input);
+    let mut boundary = Boundary::Current;
+    let mut object: Option<TextObject> = None;
 
-        if count.is_some() && count.unwrap() > 0 {
-            return MatchResult::PartialMatch;
-        }
-
-        match rest.chars().next() {
-            Some('a' | 'i') => MatchResult::PartialMatch,
-            _ => MatchResult::NoMatch,
-        }
+    let mut it = rest.chars();
+    match it.next() {
+        Some('a') => boundary = Boundary::Around,
+        Some('i') => boundary = Boundary::Inner,
+        Some('w') => object = Some(TextObject::Word),
+        Some('e') => object = Some(TextObject::End),
+        Some('(') => object = Some(TextObject::Paren),
+        Some('{') => object = Some(TextObject::CurlyBracket),
+        _ => return (None, 0),
     }
+    consumed += 1;
 
-    pub fn from_cmd(input: &str) -> (Option<Self>, usize) {
-        let (count, rest) = extract_count(input);
-        let mut consumed = count.iter().len();
+    match it.next() {
+        Some('w') => object = Some(TextObject::Word),
+        Some('e') => object = Some(TextObject::End),
+        Some('(') => object = Some(TextObject::Paren),
+        Some('{') => object = Some(TextObject::CurlyBracket),
+        _ => {}
+    };
 
-        let mut boundary = Boundary::Current;
-        let mut object: Option<TextObject> = None;
-
-        let mut it = rest.chars();
-        match it.next() {
-            Some('a') => boundary = Boundary::Around,
-            Some('i') => boundary = Boundary::Inner,
-            Some('w') => object = Some(TextObject::Word),
-            Some('e') => object = Some(TextObject::End),
-            Some('(') => object = Some(TextObject::Paren),
-            Some('{') => object = Some(TextObject::CurlyBracket),
-            _ => return (None, 0),
-        }
+    if let Some(object) = object {
         consumed += 1;
-
-        match it.next() {
-            Some('w') => object = Some(TextObject::Word),
-            Some('e') => object = Some(TextObject::End),
-            Some('(') => object = Some(TextObject::Paren),
-            Some('{') => object = Some(TextObject::CurlyBracket),
-            _ => {}
-        };
-
-        if let Some(object) = object {
-            consumed += 1;
-            return (
-                Some(Self {
-                    count,
-                    boundary,
-                    object,
-                }),
-                consumed,
-            );
-        }
-
-        (None, 0)
+        return (Some((object, boundary, count)), consumed);
     }
+
+    (None, 0)
 }

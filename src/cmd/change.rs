@@ -2,8 +2,9 @@ use log::info;
 
 use crate::{
     app::{App, Mode},
+    buffer::history::Change,
     event::AppEvent,
-    textobject::{Boundary, Motion},
+    textobject::parse_textobject,
 };
 
 pub fn change(app: &mut App) -> Result<(), String> {
@@ -13,23 +14,29 @@ pub fn change(app: &mut App) -> Result<(), String> {
     }
 
     // TODO: c$, c0, ...
-    let (motion, _) = Motion::from_cmd(&app.cmdbuf.text());
+    let (parsed, _) = parse_textobject(&app.cmdbuf.text());
 
-    match motion {
-        Some(motion) => {
+    match parsed {
+        Some((object, boundary, count)) => {
             info!(
                 "change count={:?} boundary={:?} object={:?}",
-                &motion.count.unwrap_or(1),
-                &motion.boundary,
-                &motion.object
+                count.unwrap_or(1),
+                &boundary,
+                &object
             );
 
-            let span = app.buf.span(motion);
-            app.buf
-                .delete_span(span, motion.boundary != Boundary::Current);
+            let span = app.buf.span_for_textobject(object, boundary, 1);
 
-            // app.buf
-            //     .d(motion.count.unwrap_or(1), motion.boundary, motion.object);
+            let change = Change {
+                span,
+                old: app.buf.delete_span(span, false),
+                new: "".to_string(),
+            };
+            // how do we 'merge' with the inserted text that is not yet figured out?
+            // we'll deal with that later...
+
+            app.buf.register_change(change);
+
             app.events.send(AppEvent::ModeChange(Mode::Insert));
             Ok(())
         }

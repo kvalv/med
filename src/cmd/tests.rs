@@ -1,4 +1,6 @@
-use crate::textobject::{Boundary, MatchResult, Motion, Pattern, TextObject};
+use crate::textobject::{
+    Boundary, MatchResult, Pattern, TextObject, match_textobject, parse_textobject,
+};
 
 #[test]
 fn test_pattern_write() {
@@ -23,54 +25,30 @@ fn test_with_count() {
 
 #[test]
 fn test_motion() {
-    assert_eq!(Motion::matches("2"), MatchResult::PartialMatch,);
+    assert_eq!(match_textobject("2"), MatchResult::PartialMatch);
     assert_eq!(
-        Some(Motion {
-            count: None,
-            boundary: Boundary::Inner,
-            object: TextObject::Word,
-        }),
-        Motion::from_cmd("iw").0
+        Some((TextObject::Word, Boundary::Inner, None)),
+        parse_textobject("iw").0
     );
     assert_eq!(
-        Some(Motion {
-            count: None,
-            boundary: Boundary::Around,
-            object: TextObject::Word,
-        }),
-        Motion::from_cmd("aw").0
+        Some((TextObject::Word, Boundary::Around, None)),
+        parse_textobject("aw").0
     );
     assert_eq!(
-        Some(Motion {
-            count: Some(2),
-            boundary: Boundary::Current,
-            object: TextObject::Word,
-        }),
-        Motion::from_cmd("2w").0
+        Some((TextObject::Word, Boundary::Current, Some(2))),
+        parse_textobject("2w").0
     );
     assert_eq!(
-        Some(Motion {
-            count: None,
-            boundary: Boundary::Current,
-            object: TextObject::Word,
-        }),
-        Motion::from_cmd("w").0
+        Some((TextObject::Word, Boundary::Current, None)),
+        parse_textobject("w").0
     );
     assert_eq!(
-        Some(Motion {
-            count: Some(100),
-            boundary: Boundary::Current,
-            object: TextObject::Word,
-        }),
-        Motion::from_cmd("100w").0
+        Some((TextObject::Word, Boundary::Current, Some(100))),
+        parse_textobject("100w").0
     );
     assert_eq!(
-        Some(Motion {
-            count: Some(23),
-            boundary: Boundary::Current,
-            object: TextObject::End,
-        }),
-        Motion::from_cmd("23e").0
+        Some((TextObject::End, Boundary::Current, Some(23))),
+        parse_textobject("23e").0
     );
 }
 

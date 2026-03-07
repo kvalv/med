@@ -106,41 +106,44 @@ impl App {
                         // self.buf.left(1);
                         self.buf.insert(c);
                     }
-                    Movement => {
-                        let verb = self
-                            .cmdbuf
-                            .pop()
-                            .expect("movement command should have a verb");
-                        let count = self.cmdbuf.pop_count().unwrap_or(1);
-                        match verb {
-                            'e' => {
-                                info!("Advance to end of word by {count}");
-                                self.buf.e(count);
-                            }
-                            'h' => {
-                                info!("Move left by {count}");
-                                self.buf.h(count);
-                            }
-                            'j' => {
-                                info!("Move down by {count}");
-                                self.buf.j(count);
-                            }
-                            'k' => {
-                                info!("Move up by {count}");
-                                self.buf.k(count);
-                            }
-                            'l' => {
-                                info!("Move right by {count}");
-                                self.buf.l(count);
-                            }
-                            '0' => {
-                                info!("Move to beginning of line");
-                                self.buf.position(self.buf.row, 0);
-                                self.buf.clear_target_col();
-                            }
-                            _ => {}
-                        }
-                    }
+                    // Movement => {
+                    //     let verb = self
+                    //         .cmdbuf
+                    //         .pop()
+                    //         .expect("movement command should have a verb");
+                    //     let count = self.cmdbuf.pop_count(1);
+                    //     match verb {
+                    //         'b' => {
+                    //             self.buf.b(count);
+                    //         }
+                    //         'e' => {
+                    //             info!("Advance to end of word by {count}");
+                    //             self.buf.e(count);
+                    //         }
+                    //         'h' => {
+                    //             info!("Move left by {count}");
+                    //             self.buf.h(count);
+                    //         }
+                    //         'j' => {
+                    //             info!("Move down by {count}");
+                    //             self.buf.j(count);
+                    //         }
+                    //         'k' => {
+                    //             info!("Move up by {count}");
+                    //             self.buf.k(count);
+                    //         }
+                    //         'l' => {
+                    //             info!("Move right by {count}");
+                    //             self.buf.l(count);
+                    //         }
+                    //         '0' => {
+                    //             info!("Move to beginning of line");
+                    //             self.buf.position(self.buf.row, 0);
+                    //             self.buf.clear_target_col();
+                    //         }
+                    //         _ => {}
+                    //     }
+                    // }
                     BufWrite => {
                         std::fs::write(&self.filename, self.buf.text())?;
                     }
@@ -202,23 +205,23 @@ impl App {
                 _ => {}
             },
             Mode::Normal => {
+                use KeyCode::*;
                 match key_event.code {
-                    // KeyCode::Char('i') => self.events.send(AppEvent::ModeChange(Mode::Insert)),
-                    KeyCode::Char(':' | ';') => {
-                        self.events.send(AppEvent::ModeChange(Mode::ExCommand))
-                    }
-                    KeyCode::Char('q') => self.events.send(AppEvent::Quit),
-                    KeyCode::Char('$') => {
-                        self.buf.eol();
-                    }
-                    KeyCode::Char(c @ ('b' | 'e' | 'h' | 'j' | 'k' | 'l' | '0')) => {
-                        self.cmdbuf.push(c);
-                        self.events.send(AppEvent::Movement);
-                    }
-                    KeyCode::Char('x') => {
-                        let count = self.cmdbuf.pop_count().unwrap_or(1);
-                        self.buf.x(count);
-                        info!("{count}x backspace");
+                    Char(';') => self.events.send(AppEvent::ModeChange(Mode::ExCommand)),
+                    Char(':') => self.events.send(AppEvent::ModeChange(Mode::ExCommand)),
+                    Char('q') => self.events.send(AppEvent::Quit),
+                    Char('$') => self.buf.eol(),
+                    Char('w') => self.buf.w(self.cmdbuf.pop_count(1)),
+                    Char('b') => self.buf.b(self.cmdbuf.pop_count(1)),
+                    Char('e') => self.buf.e(self.cmdbuf.pop_count(1)),
+                    Char('x') => self.buf.x(self.cmdbuf.pop_count(1)),
+                    Char('h') => self.buf.h(self.cmdbuf.pop_count(1)),
+                    Char('j') => self.buf.j(self.cmdbuf.pop_count(1)),
+                    Char('k') => self.buf.k(self.cmdbuf.pop_count(1)),
+                    Char('l') => self.buf.l(self.cmdbuf.pop_count(1)),
+                    Char('0') => {
+                        self.buf.position(self.buf.row, 0);
+                        self.buf.clear_target_col();
                     }
                     // KeyCode::Char('A') => {
                     //     self.buf.eol();
@@ -229,13 +232,11 @@ impl App {
                     //     self.buf.right(1);
                     //     self.events.send(AppEvent::ModeChange(Mode::Insert));
                     // }
-                    KeyCode::Backspace => {
-                        self.buf.h(1);
-                    }
-                    KeyCode::Esc => {
+                    Backspace => self.buf.h(1),
+                    Esc => {
                         self.cmdbuf.drain();
                     }
-                    KeyCode::Char('o') => {
+                    Char('o') => {
                         self.buf.eol();
                         self.buf.l(1);
                         self.buf.insert('\n');
@@ -243,7 +244,7 @@ impl App {
                     }
 
                     // TODO: w, ...
-                    KeyCode::Char(c) => {
+                    Char(c) => {
                         // fill up the command buffer
                         self.cmdbuf.push(c);
                         info!(
