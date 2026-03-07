@@ -2,9 +2,8 @@ use log::info;
 
 use crate::{
     app::{App, Mode},
-    cmd::pattern::Motion,
     event::AppEvent,
-    textobject::Boundary,
+    textobject::{Boundary, Motion},
 };
 
 pub fn change(app: &mut App) -> Result<(), String> {

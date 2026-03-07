@@ -1,9 +1,7 @@
 use crate::{
     buffer::Buffer,
-    cmd::{
-        CommandHandler,
-        pattern::{MatchResult, Pattern},
-    },
+    cmd::CommandHandler,
+    textobject::{MatchResult, Pattern},
 };
 use std::path::Path;
 

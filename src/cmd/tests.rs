@@ -1,7 +1,4 @@
-use crate::{
-    cmd::pattern::{MatchResult, Motion, Pattern},
-    textobject::{Boundary, TextObject},
-};
+use crate::textobject::{Boundary, MatchResult, Motion, Pattern, TextObject};
 
 #[test]
 fn test_pattern_write() {

@@ -498,7 +498,7 @@ fn test_undo() {
 
 #[test]
 fn test_delete_span() {
-    use crate::cmd::pattern::Motion;
+    use crate::textobject::Motion;
 
     let mut b = Buffer::from("the cat sat");
     b.position(0, 5);
@@ -537,7 +537,7 @@ fn test_insert_span() {
 
 #[test]
 fn test_span() {
-    use crate::cmd::pattern::Motion;
+    use crate::textobject::Motion;
 
     struct Case {
         input: &'static str,

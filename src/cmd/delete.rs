@@ -3,8 +3,7 @@ use log::info;
 use crate::{
     app::App,
     buffer::history::Change,
-    cmd::pattern::Motion,
-    textobject::{Boundary, TextObject},
+    textobject::{Boundary, Motion, TextObject},
 };
 
 pub fn delete(app: &mut App) -> Result<(), String> {

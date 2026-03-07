@@ -5,7 +5,6 @@ pub mod change;
 pub mod delete;
 pub mod insert;
 pub mod movement;
-pub mod pattern;
 pub mod undo;
 pub mod write;
 

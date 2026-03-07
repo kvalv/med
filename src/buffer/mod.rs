@@ -14,9 +14,8 @@ use log::{info, log, warn};
 
 use crate::{
     buffer::history::{Change, ChangeHistory, Operation},
-    cmd::pattern::Motion,
     span::{Position, Span},
-    textobject::{Boundary, TextObject},
+    textobject::{Boundary, Motion, TextObject},
 };
 pub mod history;
 

@@ -1,6 +1,6 @@
 use log::info;
 
-use crate::{app::App, cmd::pattern::Motion};
+use crate::{app::App, textobject::Motion};
 
 pub fn movement(app: &mut App) -> Result<(), String> {
     // 4w for example
