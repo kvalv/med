@@ -547,6 +547,26 @@ fn test_span() {
     }
     let cases: Vec<Case> = vec![
         Case {
+            input: "- [x]",
+            pos: (0, 0),
+            motion: Motion {
+                count: Some(1),
+                boundary: Current,
+                object: Word,
+            },
+            want: "- [",
+        },
+        Case {
+            input: "[x]",
+            pos: (0, 0),
+            motion: Motion {
+                count: Some(1),
+                boundary: Current,
+                object: Word,
+            },
+            want: "[x",
+        },
+        Case {
             input: "(wow\n)",
             pos: (0, 1),
             motion: Motion {

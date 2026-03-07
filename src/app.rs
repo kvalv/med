@@ -115,16 +115,6 @@ impl App {
                             .expect("movement command should have a verb");
                         let count = self.cmdbuf.pop_count().unwrap_or(1);
                         match verb {
-                            'w' => {
-                                info!("Advance word by {count}");
-                                self.buf.w(count);
-                                self.buf.clear_target_col();
-                            }
-                            'b' => {
-                                info!("Advance word backwards by {count}");
-                                self.buf.b(count);
-                                self.buf.clear_target_col();
-                            }
                             'e' => {
                                 info!("Advance to end of word by {count}");
                                 self.buf.e(count);
