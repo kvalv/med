@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Paragraph, Widget},
 };
 
-use crate::app::App;
+use crate::{app::App, highlight::highlight};
 
 impl Widget for &App {
     /// Renders the user interface widgets.
@@ -30,37 +30,47 @@ impl Widget for &App {
             .map(|line| format!("{}\n", line))
             .collect::<Vec<_>>();
 
-        let v: Vec<_> = text
-            .iter()
-            .enumerate()
-            .map(|(i, line)| {
-                if self.buf.row == i {
-                    // split into three?
-                    // let mut spans: Vec<Span> ;
-                    let mut spans = vec![];
-                    let lhs: String = line.chars().take(self.buf.col).collect();
-                    if !lhs.is_empty() {
-                        spans.push(Span::from(lhs));
-                    }
-                    if let Some(c) = line.chars().nth(self.buf.col) {
-                        if c == '\n' {
-                            spans.push(Span::from(" ").bg(Color::Red));
-                        } else {
-                            spans.push(Span::from(String::from(c)).bg(Color::Red))
-                        }
-                    }
-                    let rhs: String = line.chars().skip(self.buf.col + 1).collect();
-                    if !rhs.is_empty() {
-                        spans.push(Span::from(rhs));
-                    }
-                    Line::from(spans)
-                } else {
-                    Line::from(line.clone())
-                }
-            })
-            .collect();
+        let filetype = self
+            .filename
+            .extension()
+            .map(|ext| ext.to_str())
+            .unwrap()
+            .unwrap();
+        let binding = text.join("");
+        let v = highlight(filetype, &binding);
 
-        let paragraph = Paragraph::new(v)
+        let mut lines = vec![];
+        let mut acc = vec![];
+        let mut col = 0;
+
+        for span in &v {
+            for c in span.content.chars() {
+                // tab
+                if c == '\t' {
+                    let spaces = 4 - (col % 4);
+                    for _ in 0..spaces {
+                        acc.push(Span::from(" ").style(span.style));
+
+                        col += 1;
+                    }
+                    col += spaces;
+                    continue;
+                }
+
+                if c == '\n' {
+                    lines.push(Line::from(acc.clone()));
+                    acc.clear();
+                    col = 0;
+                } else {
+                    let str = format!("{}", c);
+
+                    acc.push(Span::from(str).style(span.style));
+                    col += 1;
+                }
+            }
+        }
+
+        let paragraph = Paragraph::new(lines)
             .block(block)
             .fg(Color::White)
             .bg(Color::Black);
@@ -73,12 +83,19 @@ impl Widget for &App {
         let [header_area, inner_area, footer_area] = vertical.areas(area);
 
         // Title
-        Line::from(self.filename.clone())
+        Line::from(self.filename.to_str().expect("Invalid filename"))
             .bold()
             .render(header_area, buf);
 
         // Content
         paragraph.render(inner_area, buf);
+
+        // Cursor
+        let cell = &mut buf[(
+            inner_area.x + self.buf.col as u16,
+            1 + inner_area.y + self.buf.row as u16, // +1 because border at top
+        )];
+        cell.set_bg(Color::White);
 
         render_footer(self, footer_area, buf);
     }
@@ -98,7 +115,7 @@ fn render_footer<'a>(app: &'a App, area: Rect, buf: &'a mut Buffer) {
     ])
     .render(lhs, buf);
 
-    Line::from(app.filename.as_str())
+    Line::from(app.filename.to_str().expect("Invalid filename"))
         .centered()
         .render(mid, buf);
 

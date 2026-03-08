@@ -7,6 +7,7 @@ pub mod app;
 pub mod buffer;
 pub mod cmd;
 pub mod event;
+pub mod highlight;
 pub mod span;
 pub mod textobject;
 pub mod ui;

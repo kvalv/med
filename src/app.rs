@@ -3,7 +3,7 @@ use crate::{
     cmd::CommandHandler,
     textobject::{MatchResult, Pattern},
 };
-use std::path::Path;
+use std::path::PathBuf;
 
 use crate::{
     cmd::{self},
@@ -40,7 +40,7 @@ impl std::fmt::Display for Mode {
 // #[derive(Debug)]
 pub struct App {
     // Location of the cursor
-    pub filename: String,
+    pub filename: PathBuf,
     pub buf: Buffer,
 
     pub cmdbuf: cmd::CmdBuf,
@@ -58,11 +58,11 @@ pub struct App {
 
 impl App {
     /// Constructs a new instance of [`App`].
-    pub fn new(path: &Path) -> Self {
+    pub fn new(path: &PathBuf) -> Self {
         let content: String = std::fs::read_to_string(path.to_str().unwrap()).unwrap();
 
         Self {
-            filename: path.to_str().unwrap().to_string(),
+            filename: path.to_owned(),
             buf: Buffer::from(content.as_str()),
             msg: None,
             mode: Mode::default(),
@@ -153,7 +153,10 @@ impl App {
                         match cmd.as_str() {
                             "w" | "wr" | "wri" | "writ" | "write" => {
                                 self.events.send(AppEvent::BufWrite);
-                                self.set_msg(format!("Wrote to file {}", self.filename));
+                                self.set_msg(format!(
+                                    "Wrote to file {}",
+                                    self.filename.to_str().unwrap()
+                                ));
                             }
                             "q" | "qu" | "qui" | "quit" => {
                                 self.events.send(AppEvent::Quit);
@@ -237,8 +240,8 @@ impl App {
                         self.cmdbuf.drain();
                     }
                     Char('o') => {
-                        self.buf.eol();
-                        self.buf.l(1);
+                        self.buf.position(self.buf.current_position().row + 1, 0);
+                        self.buf.left(1);
                         self.buf.insert('\n');
                         self.events.send(AppEvent::ModeChange(Mode::Insert));
                     }

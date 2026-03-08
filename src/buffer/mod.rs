@@ -517,37 +517,54 @@ impl Buffer {
             // let's move backward until we meet a new line. After that we'll move
             // backward until we either reach another newline or start of buffer
 
-            if self.row == 0 {
+            // move to the start of col
+            let pos = self.current_position();
+            if pos.row == 0 {
                 return;
             }
 
-            let mut maxiter = 0;
+            let target_row = pos.row - 1;
+            let target_col = self.num_columns(target_row).min(self.target_col.unwrap());
+            self.position(target_row, target_col);
 
-            while self.current_char() != '\n' {
-                self.left(1);
-                maxiter += 1;
-                if maxiter > 1000 {
-                    panic!("hit iteration limit in k - probably a bug");
-                }
-            }
+            // self.left(self.current_position().col);
+            // self.left(1); // then one more
+            // ...
 
-            // now let's move to start of line...
-            self.left(1);
-            while self.col > 0 {
-                self.left(1);
-                maxiter += 1;
-                if maxiter > 1000 {
-                    panic!("hit iteration limit in k - probably a bug");
-                }
-            }
+            // if self.row == 0 {
+            //     return;
+            // }
 
-            // ... and let's now move forward, like in the j case
-            for _ in 0..self.target_col.unwrap() {
-                if self.next_char().map(|c| c == '\n').unwrap_or(true) {
-                    break;
-                }
-                self.right(1);
-            }
+            // let mut maxiter = 0;
+
+            // // while self.current_position().col > 0 {
+            // // }
+
+            // while self.current_char() != '\n' {
+            //     self.left(1);
+            //     maxiter += 1;
+            //     if maxiter > 1000 {
+            //         panic!("hit iteration limit in k - probably a bug");
+            //     }
+            // }
+
+            // // now let's move to start of line...
+            // self.left(1);
+            // while self.col > 0 {
+            //     self.left(1);
+            //     maxiter += 1;
+            //     if maxiter > 1000 {
+            //         panic!("hit iteration limit in k - probably a bug");
+            //     }
+            // }
+
+            // // ... and let's now move forward, like in the j case
+            // for _ in 0..self.target_col.unwrap() {
+            //     if self.next_char().map(|c| c == '\n').unwrap_or(true) {
+            //         break;
+            //     }
+            //     self.right(1);
+            // }
         }
     }
 
