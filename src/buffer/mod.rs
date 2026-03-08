@@ -76,7 +76,8 @@ impl Buffer {
             .iter()
             .take(self.c)
             .chain(self.buf.iter().skip(self.d))
-            .collect()
+            .collect::<String>()
+        // .replace('\t', "    ")
     }
 
     pub fn h(&mut self, size: usize) {
@@ -158,7 +159,7 @@ impl Buffer {
         self.d >= self.buf.len() - 1
     }
 
-    fn back_while<T>(&self, start: usize, cond: T) -> usize
+    pub fn back_while<T>(&self, start: usize, cond: T) -> usize
     where
         T: Fn(Option<char>, char) -> bool,
     {
@@ -186,7 +187,7 @@ impl Buffer {
     }
 
     /// (current, next) -> bool. Returns the offset
-    fn forward_while<T>(&self, start: usize, cond: T) -> usize
+    pub fn forward_while<T>(&self, start: usize, cond: T) -> usize
     where
         T: Fn(char, Option<char>) -> bool,
     {
@@ -585,7 +586,7 @@ impl Buffer {
     // }
 
     /// returns the char the cursor is currently located at
-    fn current_char(&self) -> char {
+    pub fn current_char(&self) -> char {
         // How the hell do I know if I read from c or d?
         self.buf[self.d]
     }

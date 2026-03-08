@@ -59,7 +59,9 @@ pub struct App {
 impl App {
     /// Constructs a new instance of [`App`].
     pub fn new(path: &PathBuf) -> Self {
-        let content: String = std::fs::read_to_string(path.to_str().unwrap()).unwrap();
+        let content: String = std::fs::read_to_string(path.to_str().unwrap())
+            .unwrap()
+            .replace('\t', "    ");
 
         Self {
             filename: path.to_owned(),
@@ -104,46 +106,10 @@ impl App {
                     Write(c) => {
                         // self.buf.position(self.cursor.row, self.cursor.col);
                         // self.buf.left(1);
+                        //
+                        //
                         self.buf.insert(c);
                     }
-                    // Movement => {
-                    //     let verb = self
-                    //         .cmdbuf
-                    //         .pop()
-                    //         .expect("movement command should have a verb");
-                    //     let count = self.cmdbuf.pop_count(1);
-                    //     match verb {
-                    //         'b' => {
-                    //             self.buf.b(count);
-                    //         }
-                    //         'e' => {
-                    //             info!("Advance to end of word by {count}");
-                    //             self.buf.e(count);
-                    //         }
-                    //         'h' => {
-                    //             info!("Move left by {count}");
-                    //             self.buf.h(count);
-                    //         }
-                    //         'j' => {
-                    //             info!("Move down by {count}");
-                    //             self.buf.j(count);
-                    //         }
-                    //         'k' => {
-                    //             info!("Move up by {count}");
-                    //             self.buf.k(count);
-                    //         }
-                    //         'l' => {
-                    //             info!("Move right by {count}");
-                    //             self.buf.l(count);
-                    //         }
-                    //         '0' => {
-                    //             info!("Move to beginning of line");
-                    //             self.buf.position(self.buf.row, 0);
-                    //             self.buf.clear_target_col();
-                    //         }
-                    //         _ => {}
-                    //     }
-                    // }
                     BufWrite => {
                         std::fs::write(&self.filename, self.buf.text())?;
                     }
@@ -203,6 +169,7 @@ impl App {
             Mode::Insert => match key_event.code {
                 KeyCode::Esc => self.events.send(AppEvent::ModeChange(Mode::Normal)),
                 KeyCode::Char(c) => self.events.send(AppEvent::Write(c)),
+                KeyCode::Tab => self.events.send(AppEvent::Write('\t')),
                 KeyCode::Enter => self.events.send(AppEvent::Write('\n')),
                 KeyCode::Backspace => self.buf.backspace(1),
                 _ => {}
@@ -225,6 +192,21 @@ impl App {
                     Char('0') => {
                         self.buf.position(self.buf.row, 0);
                         self.buf.clear_target_col();
+                    }
+                    Char('_') => {
+                        self.buf.position(self.buf.row, 0);
+                        info!("current char is '{}'", self.buf.current_char());
+                        while self.buf.current_char() == ' ' || self.buf.current_char() == '\t' {
+                            self.buf.right(1);
+                        }
+                    }
+                    Char('I') => {
+                        self.buf.position(self.buf.row, 0);
+                        info!("current char is '{}'", self.buf.current_char());
+                        while self.buf.current_char() == ' ' || self.buf.current_char() == '\t' {
+                            self.buf.right(1);
+                        }
+                        self.events.send(AppEvent::ModeChange(Mode::Insert));
                     }
                     // KeyCode::Char('A') => {
                     //     self.buf.eol();
