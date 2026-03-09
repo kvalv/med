@@ -9,7 +9,6 @@ use log::info;
 
 pub mod append;
 pub mod change;
-pub mod delete;
 pub mod insert;
 pub mod movement;
 pub mod undo;
@@ -131,11 +130,17 @@ impl Command {
         match self {
             Command::Movement(m) => movement(app, m),
             Command::Delete(d) => {
-                let span = app.buf.span_for_textobject(
-                    TextObject::Word,
-                    Boundary::Inner,
-                    d.count.unwrap_or(1),
-                );
+                let span = if let Some((boundary, text_object)) = d.text_object {
+                    app.buf
+                        .span_for_textobject(text_object, boundary, d.count.unwrap_or(1))
+                } else if let Some(movement) = &d.movement {
+                    movement.span(&mut app.buf)
+                } else if d.linewise {
+                    todo!();
+                } else {
+                    todo!();
+                };
+
                 let old = app.buf.delete_span(span, true);
                 let change = crate::buffer::history::Change {
                     span,
