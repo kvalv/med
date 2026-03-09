@@ -1,8 +1,4 @@
-use crate::{
-    buffer::Buffer,
-    cmd::CommandHandler,
-    textobject::{MatchResult, Pattern},
-};
+use crate::buffer::Buffer;
 use std::path::PathBuf;
 
 use crate::{
@@ -180,43 +176,43 @@ impl App {
                     Char(';') => self.events.send(AppEvent::ModeChange(Mode::ExCommand)),
                     Char(':') => self.events.send(AppEvent::ModeChange(Mode::ExCommand)),
                     Char('q') => self.events.send(AppEvent::Quit),
-                    Char('$') => self.buf.eol(),
-                    Char('w') => self.buf.w(self.cmdbuf.pop_count(1)),
-                    Char('b') => self.buf.b(self.cmdbuf.pop_count(1)),
-                    Char('e') => self.buf.e(self.cmdbuf.pop_count(1)),
-                    Char('x') => self.buf.x(self.cmdbuf.pop_count(1)),
-                    Char('h') => self.buf.h(self.cmdbuf.pop_count(1)),
-                    Char('j') => self.buf.j(self.cmdbuf.pop_count(1)),
-                    Char('k') => self.buf.k(self.cmdbuf.pop_count(1)),
-                    Char('l') => self.buf.l(self.cmdbuf.pop_count(1)),
-                    Char('0') => {
-                        self.buf.position(self.buf.row, 0);
-                        self.buf.clear_target_col();
-                    }
-                    Char('_') => {
-                        self.buf.position(self.buf.row, 0);
-                        info!("current char is '{}'", self.buf.current_char());
-                        while self.buf.current_char() == ' ' || self.buf.current_char() == '\t' {
-                            self.buf.right(1);
-                        }
-                    }
-                    Char('I') => {
-                        self.buf.position(self.buf.row, 0);
-                        info!("current char is '{}'", self.buf.current_char());
-                        while self.buf.current_char() == ' ' || self.buf.current_char() == '\t' {
-                            self.buf.right(1);
-                        }
-                        self.events.send(AppEvent::ModeChange(Mode::Insert));
-                    }
-                    // KeyCode::Char('A') => {
-                    //     self.buf.eol();
-                    //     self.buf.right(1);
+                    // Char('$') => self.buf.eol(),
+                    // Char('w') => self.buf.w(self.cmdbuf.pop_count(1)),
+                    // Char('b') => self.buf.b(self.cmdbuf.pop_count(1)),
+                    // Char('e') => self.buf.e(self.cmdbuf.pop_count(1)),
+                    // Char('x') => self.buf.x(self.cmdbuf.pop_count(1)),
+                    // Char('h') => self.buf.h(self.cmdbuf.pop_count(1)),
+                    // Char('j') => self.buf.j(self.cmdbuf.pop_count(1)),
+                    // Char('k') => self.buf.k(self.cmdbuf.pop_count(1)),
+                    // Char('l') => self.buf.l(self.cmdbuf.pop_count(1)),
+                    // Char('0') => {
+                    //     self.buf.position(self.buf.row, 0);
+                    //     self.buf.clear_target_col();
+                    // }
+                    // Char('_') => {
+                    //     self.buf.position(self.buf.row, 0);
+                    //     info!("current char is '{}'", self.buf.current_char());
+                    //     while self.buf.current_char() == ' ' || self.buf.current_char() == '\t' {
+                    //         self.buf.right(1);
+                    //     }
+                    // }
+                    // Char('I') => {
+                    //     self.buf.position(self.buf.row, 0);
+                    //     info!("current char is '{}'", self.buf.current_char());
+                    //     while self.buf.current_char() == ' ' || self.buf.current_char() == '\t' {
+                    //         self.buf.right(1);
+                    //     }
                     //     self.events.send(AppEvent::ModeChange(Mode::Insert));
                     // }
-                    // KeyCode::Char('a') => {
-                    //     self.buf.right(1);
-                    //     self.events.send(AppEvent::ModeChange(Mode::Insert));
-                    // }
+                    // // KeyCode::Char('A') => {
+                    // //     self.buf.eol();
+                    // //     self.buf.right(1);
+                    // //     self.events.send(AppEvent::ModeChange(Mode::Insert));
+                    // // }
+                    // // KeyCode::Char('a') => {
+                    // //     self.buf.right(1);
+                    // //     self.events.send(AppEvent::ModeChange(Mode::Insert));
+                    // // }
                     Backspace => self.buf.h(1),
                     Esc => {
                         self.cmdbuf.drain();
@@ -237,28 +233,33 @@ impl App {
                             self.cmdbuf.text()
                         );
 
-                        let cmd = self.cmdbuf.text();
-                        match create_command_handlers()
-                            .into_iter()
-                            .map(|(pat, handler)| (pat.matches(&cmd), handler))
-                            .max_by(|x, y| x.0.cmp(&y.0))
-                            .unwrap()
-                        {
-                            (MatchResult::Match, handler) => {
-                                info!("Command matched pattern '{}'", cmd);
-                                let _ = handler(self);
-                                self.cmdbuf.drain();
-                            }
-                            (MatchResult::NoMatch, _) => {
-                                // Regardless of what gets typed next, it's not going to match
-                                // anything. In that case, we'll clear the cmdbuf
-                                info!("Nothing will match '{}' -> clearing cmdbuf", cmd);
-                                self.cmdbuf.drain();
-                            }
-                            (MatchResult::PartialMatch, _) => {
-                                // Still hope for matching -> keep
-                            }
-                        }
+                        self.cmdbuf.parse().map(|cmd| {
+                            info!("Parsed command from cmdbuf: {:?}", cmd);
+                            let _ = cmd.execute(self);
+                        });
+
+                        // let cmd = self.cmdbuf.text();
+                        // match create_command_handlers()
+                        //     .into_iter()
+                        //     .map(|(pat, handler)| (pat.matches(&cmd), handler))
+                        //     .max_by(|x, y| x.0.cmp(&y.0))
+                        //     .unwrap()
+                        // {
+                        //     (MatchResult::Match, handler) => {
+                        //         info!("Command matched pattern '{}'", cmd);
+                        //         let _ = handler(self);
+                        //         self.cmdbuf.drain();
+                        //     }
+                        //     (MatchResult::NoMatch, _) => {
+                        //         // Regardless of what gets typed next, it's not going to match
+                        //         // anything. In that case, we'll clear the cmdbuf
+                        //         info!("Nothing will match '{}' -> clearing cmdbuf", cmd);
+                        //         self.cmdbuf.drain();
+                        //     }
+                        //     (MatchResult::PartialMatch, _) => {
+                        //         // Still hope for matching -> keep
+                        //     }
+                        // }
                     }
                     _ => {}
                 }
@@ -293,20 +294,4 @@ impl App {
     pub fn quit(&mut self) {
         self.running = false;
     }
-}
-
-type CommandHandlers = Vec<(Pattern, CommandHandler)>;
-
-fn create_command_handlers() -> CommandHandlers {
-    vec![
-        (Pattern::from("i"), cmd::insert::insert),
-        (Pattern::from("a") | Pattern::from("A"), cmd::append::append),
-        (Pattern::from("u"), cmd::undo::undo),
-        (Pattern::from("d<motion>"), cmd::delete::delete),
-        (Pattern::from("c<motion>"), cmd::change::change),
-        (
-            Pattern::from("<count>w") | Pattern::from("<count>e"),
-            cmd::movement::movement,
-        ),
-    ]
 }

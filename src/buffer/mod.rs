@@ -16,6 +16,7 @@ use crate::{
     buffer::history::{Change, ChangeHistory},
     span::{Position, Span},
     textobject::{Boundary, TextObject},
+    wordclass::WordClass,
 };
 pub mod history;
 
@@ -24,15 +25,15 @@ pub mod history;
 #[derive(Debug, Clone)]
 pub struct Buffer {
     buf: Vec<char>,
-    c: usize,
-    d: usize,
+    pub c: usize,
+    pub d: usize,
 
     pub row: usize,
     pub col: usize,
 
     // when moving up or donw, the target column is what the desired column is to be at given
     // enough caracters, when doing jjjj or kkkk
-    target_col: Option<usize>,
+    pub target_col: Option<usize>,
 
     /// Undo and redo
     changes: ChangeHistory,
@@ -480,6 +481,9 @@ impl Buffer {
     pub fn update_target_col(&mut self) {
         self.target_col = Some(self.col);
     }
+    pub fn set_target_col(&mut self, col: usize) {
+        self.target_col = Some(col);
+    }
 
     pub fn j(&mut self, count: usize) {
         if self.target_col.is_none() {
@@ -577,6 +581,11 @@ impl Buffer {
         self.text().lines().count()
     }
 
+    pub fn rows_total(&self) -> usize {
+        self.buf.iter().take(self.c).filter(|&&c| c == '\n').count()
+            + self.buf.iter().skip(self.d).filter(|&&c| c == '\n').count()
+    }
+
     // fn prev_char(&self) -> Option<char> {
     //     if self.c == 0 {
     //         None
@@ -596,6 +605,46 @@ impl Buffer {
         } else {
             Some(self.buf[self.d + 1])
         }
+    }
+    pub fn char_at(&self, index: impl CharIndex) -> Option<char> {
+        let index = index.to_linear_index(self)?;
+        let logical_len = self.c + (self.buf.len() - self.d);
+        if index >= logical_len {
+            return None;
+        }
+        if index < self.c {
+            Some(self.buf[index])
+        } else {
+            let diff = index - self.c;
+            Some(self.buf[self.d + diff])
+        }
+    }
+
+    pub fn to_index(&self, pos: Position) -> Option<usize> {
+        pos.to_linear_index(self)
+    }
+
+    pub fn to_position(&self, index: usize) -> Option<Position> {
+        let logical_len = self.c + (self.buf.len() - self.d);
+        if index > logical_len {
+            return None;
+        }
+        let mut row = 0;
+        let mut col = 0;
+        for i in 0..index {
+            let ch = if i < self.c {
+                self.buf[i]
+            } else {
+                self.buf[self.d + (i - self.c)]
+            };
+            if ch == '\n' {
+                row += 1;
+                col = 0;
+            } else {
+                col += 1;
+            }
+        }
+        Some(Position { row, col })
     }
 
     /// current position of the cursor
@@ -656,7 +705,7 @@ impl Buffer {
         warn!("hit iteration limit in eol - probably a bug");
     }
 
-    fn num_columns(&self, row: usize) -> usize {
+    pub fn num_columns(&self, row: usize) -> usize {
         match self.text().lines().nth(row) {
             None => 0,
             Some(line) => line.char_indices().count(),
@@ -702,11 +751,12 @@ impl Buffer {
             (Current, Word) => {
                 for _ in 0..count {
                     // munch characters until end of wordclass
-                    fwd += self
-                        .forward_while(self.d, |_, next| next.map(|c| wc.eq(c)).unwrap_or(false));
+                    fwd += self.forward_while(self.d, |_, next| {
+                        next.map(|c| WordClass::from(c) == wc).unwrap_or(false)
+                    });
                     // next pass: munch whitespaces
                     fwd += self.forward_while(self.d + fwd + 1, |curr, _| {
-                        WordClass::from(curr) == WordClass::Whitespace
+                        WordClass::from(curr) == WordClass::WHITESPACE
                     });
                     // finally: if there's more text, let's put cursor on the
                     // next char
@@ -717,7 +767,9 @@ impl Buffer {
             }
             (Inner, Word) => {
                 // backwards pass
-                back = self.back_while(self.c, |prev, _| prev.map(|c| wc.eq(c)).unwrap_or(false));
+                back = self.back_while(self.c, |prev, _| {
+                    prev.map(|c| WordClass::from(c) == wc).unwrap_or(false)
+                });
                 // println!("would go back by {} chars", back);
 
                 // forward
@@ -733,7 +785,8 @@ impl Buffer {
                     // );
                     let tmp = self.forward_while(self.d + fwd, |_, next| {
                         // println!("curr='{}' next='{:?}'", curr, next);
-                        next.map(|c| wc_forward.eq(c)).unwrap_or(false)
+                        next.map(|c| WordClass::from(c) == wc_forward)
+                            .unwrap_or(false)
                     });
                     fwd += tmp;
 
@@ -765,7 +818,7 @@ impl Buffer {
                     // // if more -> advance cursor one more step??
                     // // and now we want
                     wc_forward = if self.d + fwd >= self.buf.len() {
-                        WordClass::Whitespace
+                        WordClass::WHITESPACE
                     } else {
                         WordClass::from(self.buf[self.d + fwd])
                     };
@@ -924,7 +977,11 @@ impl Buffer {
         (back, fwd, empty_span)
     }
 
-    pub fn text_for_span(&self, span: Span) -> String {
+    pub fn text_for_span(&self, mut span: Span) -> String {
+        if span.start > span.end {
+            std::mem::swap(&mut span.start, &mut span.end);
+        }
+
         // panic!("stop here for now");
         // TODO: not this
         let mut cloned = self.clone();
@@ -970,35 +1027,38 @@ impl Iterator for Buffer {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-enum WordClass {
-    AlphaNumeric, // digit, alphabet, underscore
-    Whitespace,   // space or tab
-    Symbols,      // anything except the others here
-    Newline,
+pub trait CharIndex {
+    fn to_linear_index(&self, buf: &Buffer) -> Option<usize>;
 }
 
-impl WordClass {
-    /// Returns true if the rhs char is the same wordclass as the current
-    fn eq<T>(&self, rhs: T) -> bool
-    where
-        T: Into<WordClass>,
-    {
-        rhs.into() == *self
+impl CharIndex for usize {
+    fn to_linear_index(&self, _buf: &Buffer) -> Option<usize> {
+        Some(*self)
     }
 }
 
-impl From<char> for WordClass {
-    fn from(value: char) -> Self {
-        if value.is_alphanumeric() {
-            Self::AlphaNumeric
-        } else if value == '\n' {
-            Self::Newline
-        } else if value == ' ' || value == '\t' {
-            Self::Whitespace
-        } else {
-            Self::Symbols
+impl CharIndex for Position {
+    fn to_linear_index(&self, buf: &Buffer) -> Option<usize> {
+        let mut row = 0;
+        let mut col = 0;
+        let logical_len = buf.c + (buf.buf.len() - buf.d);
+        for i in 0..logical_len {
+            if row == self.row && col == self.col {
+                return Some(i);
+            }
+            let ch = if i < buf.c {
+                buf.buf[i]
+            } else {
+                buf.buf[buf.d + (i - buf.c)]
+            };
+            if ch == '\n' {
+                row += 1;
+                col = 0;
+            } else {
+                col += 1;
+            }
         }
+        None
     }
 }
 

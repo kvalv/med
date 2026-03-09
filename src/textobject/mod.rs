@@ -6,7 +6,7 @@ pub enum TextObject {
     Paren, // ()
     CurlyBracket, // {}
     Word,
-    End, // e
+    WordEnd, // e
     // Paren, // ()
     // Brack, // <>
     Back, // b
@@ -217,7 +217,7 @@ pub fn parse_textobject(input: &str) -> (Option<(TextObject, Boundary, Option<us
         Some('a') => boundary = Boundary::Around,
         Some('i') => boundary = Boundary::Inner,
         Some('w') => object = Some(TextObject::Word),
-        Some('e') => object = Some(TextObject::End),
+        Some('e') => object = Some(TextObject::WordEnd),
         Some('(') => object = Some(TextObject::Paren),
         Some('{') => object = Some(TextObject::CurlyBracket),
         _ => return (None, 0),
@@ -226,7 +226,7 @@ pub fn parse_textobject(input: &str) -> (Option<(TextObject, Boundary, Option<us
 
     match it.next() {
         Some('w') => object = Some(TextObject::Word),
-        Some('e') => object = Some(TextObject::End),
+        Some('e') => object = Some(TextObject::WordEnd),
         Some('(') => object = Some(TextObject::Paren),
         Some('{') => object = Some(TextObject::CurlyBracket),
         _ => {}

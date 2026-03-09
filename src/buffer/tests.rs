@@ -861,3 +861,55 @@ fn test_text_for_span() {
 
     assert_eq!("cat", text);
 }
+
+#[test]
+fn test_char_at() {
+    let sample = "the quick brown\nfox jumps over\nthe lazy dog";
+    let chars: Vec<char> = sample.chars().collect();
+    let n = chars.len();
+
+    // For N random cursor positions, move the gap there, then verify
+    // char_at returns the correct character for every index.
+    let positions = [0, 1, 5, 10, 15, 16, 20, 25, 30, 35, n - 1];
+    for &cursor_col in &positions {
+        // Flatten row/col from the linear index
+        let mut row = 0;
+        let mut col = 0;
+        for &ch in &chars[..cursor_col] {
+            if ch == '\n' {
+                row += 1;
+                col = 0;
+            } else {
+                col += 1;
+            }
+        }
+
+        let mut b = Buffer::from(sample);
+        b.position(row, col);
+
+        for i in 0..n {
+            assert_eq!(
+                Some(chars[i]),
+                b.char_at(i),
+                "char_at({i}) wrong when cursor at linear pos {cursor_col} (row={row}, col={col})"
+            );
+        }
+        assert_eq!(None, b.char_at(n), "char_at(n) should be None when cursor at {cursor_col}");
+    }
+
+    // Also verify char_at works with Position
+    let b = Buffer::from(sample);
+    assert_eq!(Some('t'), b.char_at(Position { row: 0, col: 0 }));
+    assert_eq!(Some('q'), b.char_at(Position { row: 0, col: 4 }));
+    assert_eq!(Some('f'), b.char_at(Position { row: 1, col: 0 }));
+    assert_eq!(Some('r'), b.char_at(Position { row: 1, col: 13 }));
+    assert_eq!(Some('d'), b.char_at(Position { row: 2, col: 9 }));
+    assert_eq!(None, b.char_at(Position { row: 5, col: 0 }));
+
+    // Verify to_position is the inverse of CharIndex for Position
+    assert_eq!(Some(Position { row: 0, col: 0 }), b.to_position(0));
+    assert_eq!(Some(Position { row: 0, col: 4 }), b.to_position(4));
+    assert_eq!(Some(Position { row: 1, col: 0 }), b.to_position(16)); // after first '\n'
+    assert_eq!(Some(Position { row: 2, col: 11 }), b.to_position(n - 1));
+    assert_eq!(None, b.to_position(n + 100));
+}

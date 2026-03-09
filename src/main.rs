@@ -11,6 +11,7 @@ pub mod highlight;
 pub mod span;
 pub mod textobject;
 pub mod ui;
+pub mod wordclass;
 
 fn setup_logger() -> Result<(), fern::InitError> {
     fern::Dispatch::new()
