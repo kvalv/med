@@ -1,7 +1,5 @@
 use super::*;
-use crate::textobject::{
-    Boundary, MatchResult, Pattern, TextObject, match_textobject, parse_textobject,
-};
+use crate::textobject::{Object, Variant};
 
 #[test]
 fn test_parse_from_cmd() {
@@ -14,7 +12,7 @@ fn test_parse_from_cmd() {
         buf.parse(),
         Some(Command::Delete(Delete {
             count: None,
-            text_object: Some((Boundary::Inner, TextObject::Word)),
+            text_object: Some((Variant::Inner, Object::Word)),
             movement: None,
             linewise: false,
         }))
@@ -47,7 +45,7 @@ fn test_parse() {
         "diw",
         Command::Delete(Delete {
             count: None,
-            text_object: Some((Boundary::Inner, TextObject::Word)),
+            text_object: Some((Variant::Inner, Object::Word)),
             movement: None,
             linewise: false,
         }),
@@ -128,60 +126,4 @@ fn test_movement_span() {
     t("the cat sat", Position { row: 0, col: 4 }, 1, 'b', "the ");
     t("the cat sat", Position { row: 0, col: 5 }, 1, 'b', "c");
     t("the cat sat", Position { row: 0, col: 5 }, 1, 'w', "at ");
-}
-
-#[test]
-fn test_pattern_write() {
-    let pat = Pattern::from("w[rite]");
-    assert_eq!(MatchResult::Match, pat.matches("w"));
-    assert_eq!(MatchResult::Match, pat.matches("wr"));
-    assert_eq!(MatchResult::Match, pat.matches("wri"));
-    assert_eq!(MatchResult::Match, pat.matches("writ"));
-    assert_eq!(MatchResult::Match, pat.matches("write"));
-    assert_eq!(MatchResult::NoMatch, pat.matches("writex"));
-}
-
-#[test]
-fn test_with_count() {
-    let pat = Pattern::from("<count>g[g]");
-    assert_eq!(MatchResult::Match, pat.matches("g"));
-    assert_eq!(MatchResult::Match, pat.matches("32g"));
-    assert_eq!(MatchResult::Match, pat.matches("32gg"));
-    assert_eq!(MatchResult::NoMatch, pat.matches("32ggg"));
-    assert_eq!(MatchResult::PartialMatch, pat.matches("32"));
-}
-
-#[test]
-fn test_motion() {
-    assert_eq!(match_textobject("2"), MatchResult::PartialMatch);
-    assert_eq!(
-        Some((TextObject::Word, Boundary::Inner, None)),
-        parse_textobject("iw").0
-    );
-    assert_eq!(
-        Some((TextObject::Word, Boundary::Around, None)),
-        parse_textobject("aw").0
-    );
-    assert_eq!(
-        Some((TextObject::Word, Boundary::Current, Some(2))),
-        parse_textobject("2w").0
-    );
-    assert_eq!(
-        Some((TextObject::Word, Boundary::Current, None)),
-        parse_textobject("w").0
-    );
-    assert_eq!(
-        Some((TextObject::Word, Boundary::Current, Some(100))),
-        parse_textobject("100w").0
-    );
-    assert_eq!(
-        Some((TextObject::WordEnd, Boundary::Current, Some(23))),
-        parse_textobject("23e").0
-    );
-}
-
-#[test]
-fn test_d_motion() {
-    let pat = Pattern::from("d<motion>");
-    assert_eq!(MatchResult::Match, pat.matches("diw"));
 }

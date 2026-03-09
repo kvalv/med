@@ -4,7 +4,7 @@ use crate::{
     app::{App, Mode},
     buffer::history::Change,
     event::AppEvent,
-    textobject::parse_textobject,
+    textobject::{TextObject, parse_textobject},
 };
 
 pub fn change(app: &mut App) -> Result<(), String> {
@@ -25,7 +25,9 @@ pub fn change(app: &mut App) -> Result<(), String> {
                 &object
             );
 
-            let span = app.buf.span_for_textobject(object, boundary, 1);
+            // let span = app.buf.span_for_textobject(TextObject(boundary, object), 1);
+            let text_object = TextObject(boundary, object);
+            let span = text_object.span(&app.buf);
 
             let change = Change {
                 span,

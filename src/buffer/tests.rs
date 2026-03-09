@@ -1,5 +1,6 @@
-use crate::textobject::Boundary::*;
-use crate::textobject::TextObject::*;
+use crate::textobject::Object::*;
+use crate::textobject::TextObject;
+use crate::textobject::Variant::*;
 
 use super::*;
 
@@ -429,76 +430,12 @@ fn test_k() {
 }
 
 #[test]
-fn test_d() {
-    use Boundary::*;
-    use TextObject::*;
-    let mut b: Buffer;
-
-    b = Buffer::from("hi\nworld");
-    b.position(0, 0);
-    b.d(1, Current, Word);
-    assert_eq!("\nworld", b.text());
-    // return;
-
-    b = Buffer::from("the cat sat");
-    b.position(0, 5);
-    assert_eq!('a', b.current_char());
-    b.d(1, Inner, Word);
-    assert_eq!("the  sat", b.text());
-
-    b = Buffer::from("the cat sat");
-    b.position(0, 4);
-    b.d(1, Inner, Word);
-    assert_eq!("the  sat", b.text());
-
-    b = Buffer::from("the cat sat");
-    b.position(0, 3); // kills the whitespace
-    b.d(1, Inner, Word);
-    assert_eq!("thecat sat", b.text());
-
-    b = Buffer::from("the cat    sat");
-    b.position(0, 5);
-    b.d(1, Current, Word);
-    assert_eq!("the csat", b.text());
-    assert_eq!(b.row, 0);
-    assert_eq!(b.col, 5);
-
-    b = Buffer::from("hi");
-    b.position(0, 0);
-    b.d(1, Current, Word);
-    assert_eq!("", b.text());
-
-    b = Buffer::from("the cdog");
-    b.position(0, 5);
-    b.d(2, Current, Word);
-    assert_eq!("the ", b.text());
-
-    // when delete and reach end of word, also delete the current letter??? wtf?
-    b = Buffer::from("the cat sat");
-    b.position(0, 5);
-    b.d(3, Current, Word);
-    assert_eq!("the ", b.text());
-
-    b = Buffer::from("- [x] navigation");
-    b.position(0, 2);
-    assert_eq!('[', b.current_char());
-    b.d(1, Current, Word);
-    assert_eq!("- navigation", b.text());
-}
-
-#[test]
-fn test_undo() {
-    let mut b = Buffer::from("the cat sat");
-    b.position(0, 5);
-    b.d(1, Inner, Word);
-    b.undo();
-}
-
-#[test]
 fn test_delete_span() {
     let mut b = Buffer::from("the cat sat");
     b.position(0, 5);
-    let span = b.span_for_textobject(Word, Inner, 1);
+    // let span = b.span_for_textobject(Word, Inner, 1);
+    // let span = b.span_for_textobject(TextObject(Inner, Word), 1);
+    let span = TextObject(Inner, Word).span(&mut b);
     println!("span is {}", span);
     let text = b.delete_span(span, false);
     assert_eq!("the  sat", b.text());
@@ -532,305 +469,183 @@ fn test_span() {
     struct Case {
         input: &'static str,
         pos: (usize, usize),
-        object: TextObject,
-        boundary: Boundary,
+        textobj: TextObject,
         count: usize,
         want: &'static str,
     }
     let cases: Vec<Case> = vec![
         Case {
-            input: "- [x]",
-            pos: (0, 0),
-            object: Word,
-            boundary: Current,
-            count: 1,
-            want: "- [",
-        },
-        Case {
-            input: "[x]",
-            pos: (0, 0),
-            object: Word,
-            boundary: Current,
-            count: 1,
-            want: "[x",
-        },
-        Case {
             input: "(wow\n)",
             pos: (0, 1),
-            object: Paren,
-            boundary: Around,
+            textobj: TextObject(Around, Paren),
             count: 1,
             want: "(wow\n)",
         },
         Case {
             input: "x{foo}y",
             pos: (0, 1),
-            object: CurlyBracket,
-            boundary: Around,
+            textobj: TextObject(Around, CurlyBracket),
             count: 1,
             want: "{foo}",
         },
         Case {
             input: "x{foo}y",
             pos: (0, 1),
-            object: CurlyBracket,
-            boundary: Inner,
+            textobj: TextObject(Inner, CurlyBracket),
             count: 1,
             want: "foo",
         },
         Case {
             input: "x(foo)y",
             pos: (0, 1),
-            object: Paren,
-            boundary: Inner,
+            textobj: TextObject(Inner, Paren),
             count: 1,
             want: "foo",
         },
         Case {
             input: ")x(",
             pos: (0, 1),
-            object: Paren,
-            boundary: Around,
+            textobj: TextObject(Around, Paren),
             count: 2,
             want: "",
         },
         Case {
             input: "a (xxx) b)",
             pos: (0, 4),
-            object: Paren,
-            boundary: Around,
+            textobj: TextObject(Around, Paren),
             count: 2,
             want: "",
         },
         Case {
             input: "a (xxx) b",
             pos: (0, 4),
-            object: Paren,
-            boundary: Around,
+            textobj: TextObject(Around, Paren),
             count: 2,
             want: "",
         },
         Case {
             input: "a (xxx) b",
             pos: (0, 4),
-            object: Paren,
-            boundary: Around,
+            textobj: TextObject(Around, Paren),
             count: 1,
             want: "(xxx)",
         },
         Case {
             input: "a (inner) b",
             pos: (0, 5),
-            object: Paren,
-            boundary: Inner,
+            textobj: TextObject(Inner, Paren),
             count: 1,
             want: "inner",
         },
         Case {
-            input: "a b    c",
-            pos: (0, 0),
-            object: Word,
-            boundary: Current,
-            count: 2,
-            want: "a b    c",
-        },
-        Case {
-            input: "a b    c",
-            pos: (0, 0),
-            object: Word,
-            boundary: Current,
-            count: 1,
-            want: "a b",
-        },
-        Case {
-            input: "a",
-            pos: (0, 0),
-            object: Word,
-            boundary: Current,
-            count: 2,
-            want: "a",
-        },
-        Case {
-            input: "foo.!bar",
-            pos: (0, 1),
-            object: Word,
-            boundary: Current,
-            count: 3,
-            want: "oo.!bar",
-        },
-        Case {
-            input: "foo.!bar",
-            pos: (0, 1),
-            object: Word,
-            boundary: Current,
-            count: 2,
-            want: "oo.!b",
-        },
-        Case {
-            input: "foo.!bar",
-            pos: (0, 1),
-            object: Word,
-            boundary: Current,
-            count: 1,
-            want: "oo.",
-        },
-        Case {
-            input: "foo.bar",
-            pos: (0, 1),
-            object: Word,
-            boundary: Current,
-            count: 1,
-            want: "oo.",
-        },
-        Case {
-            input: "cat ",
-            pos: (0, 1),
-            object: Word,
-            boundary: Current,
-            count: 1,
-            want: "at ",
-        },
-        Case {
-            input: "the cat ",
-            pos: (0, 5),
-            object: Word,
-            boundary: Current,
-            count: 1,
-            want: "at ",
-        },
-        Case {
-            input: "the cat sat",
-            pos: (0, 5),
-            object: Word,
-            boundary: Current,
-            count: 1,
-            want: "at s",
-        },
-        Case {
             input: "the cat     sat",
             pos: (0, 5),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 2,
             want: "cat     ",
         },
         Case {
             input: "the cat sat",
             pos: (0, 5),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 4,
             want: "cat sat",
         },
         Case {
             input: "the cat sat",
             pos: (0, 5),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 3,
             want: "cat sat",
         },
         Case {
             input: "the cat sat",
             pos: (0, 5),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 2,
             want: "cat ",
         },
         Case {
             input: "abba",
             pos: (0, 1),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 3,
             want: "abba",
         },
         Case {
             input: "abba",
             pos: (0, 1),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 2,
             want: "abba",
         },
         Case {
             input: "abba",
             pos: (0, 1),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 1,
             want: "abba",
         },
         Case {
             input: "a.!b!",
             pos: (0, 2),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 1,
             want: ".!",
         },
         Case {
             input: "a.!b!",
             pos: (0, 1),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 2,
             want: ".!b",
         },
         Case {
             input: "a.!b!",
             pos: (0, 1),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 2,
             want: ".!b",
         },
         Case {
             input: "a.!b",
             pos: (0, 1),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 2,
             want: ".!b",
         },
         Case {
             input: "a.!b",
             pos: (0, 1),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 1,
             want: ".!",
         },
         Case {
             input: "a..b",
             pos: (0, 1),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 1,
             want: "..",
         },
         Case {
             input: "a.b",
             pos: (0, 0),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 1,
             want: "a",
         },
         Case {
             input: "a.b",
             pos: (0, 1),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 1,
             want: ".",
         },
         Case {
             input: "the cat sat",
             pos: (0, 5),
-            object: Word,
-            boundary: Inner,
+            textobj: TextObject(Inner, Word),
             count: 1,
             want: "cat",
         },
@@ -839,12 +654,13 @@ fn test_span() {
     for (i, tc) in cases.iter().enumerate() {
         let mut b = Buffer::from(tc.input);
         b.position(tc.pos.0, tc.pos.1);
-        let span = b.span_for_textobject(tc.object, tc.boundary, tc.count);
+        // let span = b.span_for_textobject(tc.textobj, tc.count);
+        let span = tc.textobj.span(&b);
         let got = b.text_for_span(span);
         assert_eq!(
             tc.want, got,
-            "\n\nCase {i} failed: input={:?} pos={:?} obj={:?} boundary={:?} count={}\n",
-            tc.input, tc.pos, tc.object, tc.boundary, tc.count
+            "\n\nCase {i} failed: input={:?} pos={:?} textobj={:?} count={}\n",
+            tc.input, tc.pos, tc.textobj, tc.count
         );
     }
 }
@@ -856,7 +672,8 @@ fn test_text_for_span() {
 
     assert_eq!("cat", b.text_for_span(Span::from((0, 4, 0, 7))));
 
-    let span = b.span_for_textobject(Word, Inner, 1);
+    // let span = b.span_for_textobject(TextObject(Inner, Word), 1);
+    let span = TextObject(Inner, Word).span(&b);
     let text = b.text_for_span(span);
 
     assert_eq!("cat", text);
@@ -894,7 +711,11 @@ fn test_char_at() {
                 "char_at({i}) wrong when cursor at linear pos {cursor_col} (row={row}, col={col})"
             );
         }
-        assert_eq!(None, b.char_at(n), "char_at(n) should be None when cursor at {cursor_col}");
+        assert_eq!(
+            None,
+            b.char_at(n),
+            "char_at(n) should be None when cursor at {cursor_col}"
+        );
     }
 
     // Also verify char_at works with Position

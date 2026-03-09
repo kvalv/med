@@ -2,7 +2,7 @@ use crate::app::App;
 use crate::buffer::Buffer;
 use crate::cmd::movement::movement;
 use crate::span::{Position, Span};
-use crate::textobject::{Boundary, TextObject};
+use crate::textobject::{Object, TextObject, Variant};
 use crate::wordclass::WordClass;
 use chumsky::{Parser, error::Rich, extra, prelude::*};
 use log::info;
@@ -107,7 +107,7 @@ impl std::fmt::Display for CmdBuf {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Delete {
     count: Option<usize>,
-    text_object: Option<(Boundary, TextObject)>,
+    text_object: Option<TextObject>,
     movement: Option<Movement>, // delete by movemeng, e.g. 'dj' or 'dG'
     linewise: bool,             // dd
 }
@@ -130,11 +130,10 @@ impl Command {
         match self {
             Command::Movement(m) => movement(app, m),
             Command::Delete(d) => {
-                let span = if let Some((boundary, text_object)) = d.text_object {
-                    app.buf
-                        .span_for_textobject(text_object, boundary, d.count.unwrap_or(1))
+                let span = if let Some(text_object) = d.text_object {
+                    text_object.span(&app.buf)
                 } else if let Some(movement) = &d.movement {
-                    movement.span(&mut app.buf)
+                    movement.span(&app.buf)
                 } else if d.linewise {
                     todo!();
                 } else {
@@ -167,19 +166,19 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Command, extra::Err<Rich<'a, char>>>
     // // aw, ae, iw, ie
     let text_object = one_of("ai").then(one_of("wWe()[]{}<>")).map(|(n, c)| {
         let boundary = match n {
-            'a' => Boundary::Around,
-            _ => Boundary::Inner,
+            'a' => Variant::Around,
+            _ => Variant::Inner,
         };
         let text_object = match c {
-            'w' => TextObject::Word,
-            'e' => TextObject::WordEnd,
-            '(' => TextObject::Paren,
-            ')' => TextObject::Paren,
-            '{' => TextObject::CurlyBracket,
-            '}' => TextObject::CurlyBracket,
+            'w' => Object::Word,
+            'e' => Object::WordEnd,
+            '(' => Object::Paren,
+            ')' => Object::Paren,
+            '{' => Object::CurlyBracket,
+            '}' => Object::CurlyBracket,
             _ => todo!(),
         };
-        (boundary, text_object)
+        TextObject(boundary, text_object)
     });
 
     let movement0 = just('0').to(Movement {
@@ -230,7 +229,7 @@ fn parser<'a>() -> impl Parser<'a, &'a str, Command, extra::Err<Rich<'a, char>>>
 }
 
 impl Movement {
-    pub fn span(&self, buf: &mut Buffer) -> Span {
+    pub fn span(&self, buf: &Buffer) -> Span {
         // ... right?
         // word -> go until we are start of next word
         // let mut span = Span::empty_at(b.row, b.col);

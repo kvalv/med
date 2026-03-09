@@ -15,8 +15,7 @@ use log::{info, warn};
 use crate::{
     buffer::history::{Change, ChangeHistory},
     span::{Position, Span},
-    textobject::{Boundary, TextObject},
-    wordclass::WordClass,
+    textobject::TextObject,
 };
 pub mod history;
 
@@ -210,66 +209,6 @@ impl Buffer {
         panic!("hit iteration limit in advance_while - probably a bug");
     }
 
-    pub fn d(&mut self, count: usize, boundary: Boundary, obj: TextObject) {
-        use Boundary::*;
-        use TextObject::*;
-
-        match (boundary, obj) {
-            (Current, Word) => {
-                for _ in 0..count {
-                    if self.d >= self.buf.len() {
-                        if self.c > 0 {
-                            self.c -= 1;
-                        }
-                        return;
-                    }
-                    let start = self.current_char();
-
-                    if start.is_whitespace() {
-                        // handle that by just munching whitespace
-                        let i = self
-                            .forward_while(self.d, |_, next| next.map(is_word).unwrap_or(false));
-                        self.d += i;
-                        return;
-                    }
-
-                    // otherwise it's a word. We'll eat up all words,
-                    // and then we'll eat up any trailing whitespace
-
-                    let i = self.forward_while(self.d, |curr, _| is_word(curr));
-
-                    self.d += i;
-                    let j = self.forward_while(self.d, |curr, _| curr == ' ');
-                    self.d += j;
-                }
-            }
-            (Inner, Word) => {
-                // if we do a 'diw' on whitespace --> the whitespace should be
-                // killed. Otherwise, the word should be killed
-
-                // a predicate deciding what we want to remove
-                let want_removed = if self.current_char().is_whitespace() {
-                    is_blank
-                } else {
-                    is_word
-                };
-
-                let i = self.back_while(self.c, |prev, _| prev.map(want_removed).unwrap_or(false));
-                self.c -= i;
-                self.col -= i;
-
-                // forward
-                let j =
-                    self.forward_while(self.d, |_, next| next.map(want_removed).unwrap_or(false));
-                // let end = self.advance_while(self.d, is_word);
-                self.d += j + 1;
-            }
-            (Around, Word) => {}
-
-            _ => todo!(),
-        }
-    }
-
     /// Moves to a particular line
     pub fn position(&mut self, row: usize, col: usize) {
         let num_rows = self.text().lines().count();
@@ -437,9 +376,7 @@ impl Buffer {
         }
     }
     pub fn redo(&mut self) {
-        if let Some(_) = self.changes.redo() {
-            todo!();
-        }
+        todo!();
     }
 
     /// vim-motion, go back by word
@@ -712,177 +649,6 @@ impl Buffer {
         }
     }
 
-    pub fn span_for_textobject(&self, obj: TextObject, boundary: Boundary, count: usize) -> Span {
-        let wc = WordClass::from(self.current_char());
-
-        // let last_iteration = |k: usize| k == count - 1;
-        // let at_boundary = |idx: usize| idx == 0 || (idx >= self.buf.len() - 1);
-        // let char_at = |idx: usize| {
-        //     if idx >= self.buf.len() {
-        //         '\0'
-        //     } else {
-        //         self.buf[idx]
-        //     }
-        // };
-
-        let mut back: usize = 0;
-        let mut fwd: usize = 0;
-        let mut empty_span = false;
-
-        use Boundary::*;
-        use TextObject::*;
-
-        match (boundary, obj) {
-            (Around, Paren) | (Around, CurlyBracket) => {
-                (back, fwd, empty_span) = self.span_around_symbol(
-                    obj.open_symbol().unwrap(),
-                    obj.close_symbol().unwrap(),
-                    count,
-                );
-            }
-            (Inner, Paren) | (Inner, CurlyBracket) => {
-                let span = self.span_for_textobject(obj, Around, count);
-                return if span.is_empty() {
-                    span
-                } else {
-                    span.shrink(1)
-                };
-            }
-            (Current, Word) => {
-                for _ in 0..count {
-                    // munch characters until end of wordclass
-                    fwd += self.forward_while(self.d, |_, next| {
-                        next.map(|c| WordClass::from(c) == wc).unwrap_or(false)
-                    });
-                    // next pass: munch whitespaces
-                    fwd += self.forward_while(self.d + fwd + 1, |curr, _| {
-                        WordClass::from(curr) == WordClass::WHITESPACE
-                    });
-                    // finally: if there's more text, let's put cursor on the
-                    // next char
-                    if self.d + fwd + 1 < self.buf.len() {
-                        fwd += 1;
-                    }
-                }
-            }
-            (Inner, Word) => {
-                // backwards pass
-                back = self.back_while(self.c, |prev, _| {
-                    prev.map(|c| WordClass::from(c) == wc).unwrap_or(false)
-                });
-                // println!("would go back by {} chars", back);
-
-                // forward
-                fwd = 0;
-                let mut wc_forward = wc;
-                for k in 0..count {
-                    // println!(
-                    //     "k={} Start char is '{}' and wc is {:?} and index is {}",
-                    //     k,
-                    //     self.buf[self.d + fwd],
-                    //     wc_forward,
-                    //     self.d + fwd
-                    // );
-                    let tmp = self.forward_while(self.d + fwd, |_, next| {
-                        // println!("curr='{}' next='{:?}'", curr, next);
-                        next.map(|c| WordClass::from(c) == wc_forward)
-                            .unwrap_or(false)
-                    });
-                    fwd += tmp;
-
-                    if k == count - 1 {
-                        break;
-                    }
-
-                    // if already at end -> nothing to do
-                    if self.d + fwd + 1 >= self.buf.len() {
-                        // println!("At end nothing to do");
-                        break;
-                    }
-
-                    fwd += 1; // 
-
-                    // println!(
-                    //     "buf.len={} d={} j={} tmp={} d will look at '{}'",
-                    //     self.buf.len(),
-                    //     self.d,
-                    //     fwd,
-                    //     tmp,
-                    //     if self.d + fwd >= self.buf.len() {
-                    //         'X'
-                    //     } else {
-                    //         self.buf[self.d + fwd]
-                    //     }
-                    // );
-
-                    // // if more -> advance cursor one more step??
-                    // // and now we want
-                    wc_forward = if self.d + fwd >= self.buf.len() {
-                        WordClass::WHITESPACE
-                    } else {
-                        WordClass::from(self.buf[self.d + fwd])
-                    };
-                    // println!("self.d+j = {}", self.d + fwd);
-                    // println!(
-                    //     "Moved forward by {}, char is '{}' and wc_forward is {:?}",
-                    //     tmp,
-                    //     self.buf[self.d + j],
-                    //     wc_forward
-                    // );
-                }
-                //
-            }
-            _ => todo!(),
-        }
-
-        // println!("go back by {} and forward by {}", back, fwd);
-
-        if empty_span {
-            // e.g. due to '2a(' when there is no second paranthesis
-            // --> empty span (no words selected)
-            return Span::empty_at(self.row, self.col);
-        }
-
-        let mut span = Span {
-            start: Position {
-                row: self.row,
-                col: self.col,
-            },
-            end: Position {
-                row: self.row,
-                col: self.col + 1,
-            },
-        };
-
-        for k in 0..back {
-            if self.buf[self.c - k] == '\n' {
-                span.start.row -= 1;
-                span.start.col = self.num_columns(span.start.row);
-                // println!(
-                //     "subtracting one in span.start.row and setting col to {}",
-                //     span.start.col
-                // );
-            } else {
-                span.start.col -= 1;
-                // println!("subtracting one in span.start.col");
-            }
-        }
-        for k in 0..fwd {
-            if self.buf[self.d + k] == '\n' {
-                span.end.row += 1;
-                span.end.col = 1; // To include? I added col=1 to make va( with
-            // newline work.
-            } else {
-                span.end.col += 1;
-            }
-        }
-        // println!(
-        //     "resulting span is ({}, {}) to ({}, {})",
-        //     span.start.row, span.start.col, span.end.row, span.end.col
-        // );
-        span
-    }
-
     pub fn delete_span(&mut self, span: Span, include_end: bool) -> String {
         self.position(span.start.row, span.start.col);
 
@@ -1000,18 +766,6 @@ impl Buffer {
         }
         panic!("hit iteration limit in text_for_span - probably a bug");
     }
-}
-
-// sequence of letters, digits, underscores, or a sequence of other
-// non-blank characters.
-fn is_word(c: char) -> bool {
-    c.is_alphanumeric() || "[]().,$_".chars().any(|h| h == c)
-}
-// fn is_WORD(c: char) -> bool {
-//     is_word(c) // TODO
-// }
-fn is_blank(c: char) -> bool {
-    c.is_whitespace() || c == '\n'
 }
 
 impl Iterator for Buffer {

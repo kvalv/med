@@ -6,10 +6,6 @@ impl WordClass {
     pub const WHITESPACE: WordClass = WordClass(2);
     pub const SYMBOLS: WordClass = WordClass(4);
     pub const NEWLINE: WordClass = WordClass(8);
-
-    pub fn contains(self, other: WordClass) -> bool {
-        self.0 & other.0 != 0
-    }
 }
 
 impl std::ops::BitOr for WordClass {
